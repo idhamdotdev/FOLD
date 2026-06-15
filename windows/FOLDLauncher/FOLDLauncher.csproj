@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <PublishTrimmed>true</PublishTrimmed>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <AssemblyName>FOLD</AssemblyName>
+    <RootNamespace>FOLDLauncher</RootNamespace>
+    <ApplicationIcon>..\FOLD\Resources\tray_icon.ico</ApplicationIcon>
+    <!-- We need trimming features enabled for small size -->
+    <TrimMode>link</TrimMode>
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+  </PropertyGroup>
+
+  <!-- Embed FOLD_portable.zip as a resource -->
+  <ItemGroup>
+    <EmbeddedResource Include="FOLD_portable.zip" Condition="Exists('FOLD_portable.zip')" />
+  </ItemGroup>
+
+</Project>
