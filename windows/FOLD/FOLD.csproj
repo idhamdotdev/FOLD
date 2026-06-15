@@ -17,6 +17,8 @@
     <Product>FOLD by @idham.dev</Product>
     <Description>FOLD by @idham.dev</Description>
     <Title>FOLD by @idham.dev</Title>
+    <!-- Only include English satellite assemblies; strip all other locales (~30 MB saved) -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Sdcb.FFmpeg" Version="7.0.0" />
