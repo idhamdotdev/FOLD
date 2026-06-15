@@ -38,6 +38,16 @@
     - *.log          : any leftover log files from previous runs
     All DLL files are kept — Sdcb.FFmpeg loads them all at startup.
   -->
+  <Target Name="ExcludeUnusedFFmpeg" AfterTargets="ComputeFilesToPublish" BeforeTargets="GenerateSingleFileBundle">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::new('%(Filename)').StartsWith('avdevice-'))" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::new('%(Filename)').StartsWith('avfilter-'))" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::new('%(Filename)').StartsWith('avformat-'))" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::new('%(Filename)').StartsWith('postproc-'))" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::new('%(Filename)').StartsWith('swresample-'))" />
+    </ItemGroup>
+  </Target>
+
   <Target Name="CleanPublishOutput" AfterTargets="Publish">
     <ItemGroup>
       <_DistroClean Include="$(PublishDir)createdump.exe" />

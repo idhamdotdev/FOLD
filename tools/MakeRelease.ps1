@@ -18,8 +18,15 @@ function Warn($msg)    { Write-Host "  [!!] $msg" -ForegroundColor Yellow }
 function Fail($msg)    { Write-Host "  [XX] $msg" -ForegroundColor Red }
 
 Title "=== FOLD Release Builder ==="
-if (Test-Path $release) { Remove-Item $release -Recurse -Force }
-New-Item $release -ItemType Directory | Out-Null
+if (Test-Path $release) {
+    try {
+        Get-ChildItem $release | Where-Object { $_.Name -ne "FOLD_test" } | Remove-Item -Recurse -Force
+    } catch {
+        Warn "Could not fully clean the release directory (some files may be locked)."
+    }
+} else {
+    New-Item $release -ItemType Directory | Out-Null
+}
 Write-Host "  Output: $release"
 
 # -------------------------------------------------------------------------
@@ -32,7 +39,7 @@ if (Test-Path $tmp1) { Remove-Item $tmp1 -Recurse -Force }
 dotnet publish $csproj -c Release -r win-x64 `
     "-p:SelfContained=true" `
     "-p:PublishSingleFile=true" `
-    "-p:IncludeNativeLibrariesForSelfExtract=true" `
+    "-p:IncludeNativeLibrariesForSelfExtract=false" `
     -o $tmp1 | Out-Null
 
 $exeSrc = Join-Path $tmp1 "FOLD.exe"
@@ -56,8 +63,17 @@ if (Test-Path $exeSrc) {
 # -------------------------------------------------------------------------
 Title "[2/3] Building portable folder & ZIP..."
 $portableFolder = Join-Path $release "FOLD"
-if (Test-Path $portableFolder) { Remove-Item $portableFolder -Recurse -Force }
-New-Item $portableFolder -ItemType Directory | Out-Null
+if (Test-Path $portableFolder) {
+    try {
+        Remove-Item $portableFolder -Recurse -Force
+    } catch {
+        Warn "Could not remove $portableFolder, trying to delete files individually..."
+        Get-ChildItem $portableFolder -Recurse | Remove-Item -Force -ErrorAction SilentlyContinue
+    }
+}
+if (-not (Test-Path $portableFolder)) {
+    New-Item $portableFolder -ItemType Directory | Out-Null
+}
 
 dotnet publish $csproj -c Release -r win-x64 `
     "-p:SelfContained=false" `
