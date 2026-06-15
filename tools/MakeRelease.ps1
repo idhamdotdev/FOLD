@@ -1,7 +1,7 @@
 # MakeRelease.ps1 - FOLD Release Builder
 # Produces a /release folder at the project root containing:
-#   FOLD.exe           - Standalone single-file (any PC, no .NET needed)
-#   FOLD_portable.zip  - Folder build zipped    (needs .NET 8 Desktop Runtime)
+#   FOLD.zip           - Self-contained ZIP  (any PC, no .NET needed — just extract & run)
+#   FOLD_portable.zip  - Folder build zipped (needs .NET 8 Desktop Runtime, smaller)
 #   FOLD.apk           - Android application
 
 $ErrorActionPreference = "Stop"
@@ -30,68 +30,76 @@ if (Test-Path $release) {
 Write-Host "  Output: $release"
 
 # -------------------------------------------------------------------------
-# 1. Standalone EXE (self-contained, single file, works on any PC)
+# 1. Standalone ZIP (self-contained folder, works on any PC, no .NET needed)
+#    DLLs sit alongside FOLD.exe — ZIP compression brings size down ~60%
 # -------------------------------------------------------------------------
-Title "[1/3] Building standalone EXE..."
-$tmp1 = Join-Path $root "windows\FOLD\_tmp_standalone"
-if (Test-Path $tmp1) { Remove-Item $tmp1 -Recurse -Force }
+Title "[1/3] Building standalone (self-contained)..."
+$standaloneFolder = Join-Path $release "FOLD"
+if (Test-Path $standaloneFolder) {
+    try { Remove-Item $standaloneFolder -Recurse -Force } catch {}
+}
+New-Item $standaloneFolder -ItemType Directory -Force | Out-Null
 
 dotnet publish $csproj -c Release -r win-x64 `
     "-p:SelfContained=true" `
-    "-p:PublishSingleFile=true" `
-    "-p:IncludeNativeLibrariesForSelfExtract=true" `
-    -o $tmp1 | Out-Null
+    "-p:PublishSingleFile=false" `
+    -o $standaloneFolder | Out-Null
 
-$exeSrc = Join-Path $tmp1 "FOLD.exe"
-if (Test-Path $exeSrc) {
-    Copy-Item $exeSrc "$release\FOLD.exe" -Force
-    try {
-        Remove-Item $tmp1 -Recurse -Force
-    } catch {
-        Warn "Could not clean up temporary directory $tmp1 (files may be locked)."
-    }
-    Ok ("FOLD.exe  ->  " + (SizeMB "$release\FOLD.exe") + " MB  (standalone, no .NET required)")
+# Strip unused locale folders (FOLD is English-only)
+Get-ChildItem $standaloneFolder -Directory | Where-Object {
+    $_.Name -match "^(cs|de|es|fr|it|ja|ko|pl|pt-BR|ru|tr|zh-Hans|zh-Hant)$"
+} | ForEach-Object { Remove-Item $_.FullName -Recurse -Force }
+
+# Remove debug/diagnostic files
+Remove-Item "$standaloneFolder\createdump.exe" -Force -ErrorAction SilentlyContinue
+Remove-Item "$standaloneFolder\*.pdb" -Force -ErrorAction SilentlyContinue
+
+$standaloneZip = "$release\FOLD.zip"
+Title "  Compressing to ZIP..."
+Start-Sleep -Seconds 1
+tar -a -cf $standaloneZip -C $release FOLD
+
+if (Test-Path $standaloneZip) {
+    $folderSize = [math]::Round((Get-ChildItem $standaloneFolder -Recurse -File | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
+    Ok ("FOLD folder   ->  " + $folderSize + " MB  (self-contained, no .NET required)")
+    Ok ("FOLD.zip      ->  " + (SizeMB $standaloneZip) + " MB  (compressed, just extract and run)")
 } else {
-    Fail "FOLD.exe not found - standalone build failed."
-    try {
-        Remove-Item $tmp1 -Recurse -Force
-    } catch {}
+    Fail "FOLD.zip was not created."
 }
 
+# Clean up the folder (keep only the ZIP)
+try { Remove-Item $standaloneFolder -Recurse -Force } catch {}
+
 # -------------------------------------------------------------------------
-# 2. Portable Folder & ZIP (framework-dependent folder, requires .NET 8)
+# 2. Portable Folder & ZIP (framework-dependent, requires .NET 8)
 # -------------------------------------------------------------------------
-Title "[2/3] Building portable folder & ZIP..."
+Title "[2/3] Building portable (framework-dependent)..."
 $portableFolder = Join-Path $release "FOLD"
 if (Test-Path $portableFolder) {
-    try {
-        Remove-Item $portableFolder -Recurse -Force
-    } catch {
-        Warn "Could not remove $portableFolder, trying to delete files individually..."
-        Get-ChildItem $portableFolder -Recurse | Remove-Item -Force -ErrorAction SilentlyContinue
-    }
+    try { Remove-Item $portableFolder -Recurse -Force } catch {}
 }
-if (-not (Test-Path $portableFolder)) {
-    New-Item $portableFolder -ItemType Directory | Out-Null
-}
+New-Item $portableFolder -ItemType Directory -Force | Out-Null
 
 dotnet publish $csproj -c Release -r win-x64 `
     "-p:SelfContained=false" `
     "-p:PublishSingleFile=false" `
     -o $portableFolder | Out-Null
 
-$zip = "$release\FOLD_portable.zip"
-Title "  Waiting for file locks to clear..."
+$portableZip = "$release\FOLD_portable.zip"
+Title "  Compressing to ZIP..."
 Start-Sleep -Seconds 1
-tar -a -cf $zip -C $release FOLD
+tar -a -cf $portableZip -C $release FOLD
 
-if (Test-Path $zip) {
+if (Test-Path $portableZip) {
     $folderSize = [math]::Round((Get-ChildItem $portableFolder -Recurse -File | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
-    Ok ("FOLD folder         ->  " + $folderSize + " MB  (same structure as STICam)")
-    Ok ("FOLD_portable.zip   ->  " + (SizeMB $zip) + " MB  (zipped version)")
+    Ok ("FOLD folder         ->  " + $folderSize + " MB  (needs .NET 8 Desktop Runtime)")
+    Ok ("FOLD_portable.zip   ->  " + (SizeMB $portableZip) + " MB  (compressed)")
 } else {
     Fail "FOLD_portable.zip was not created."
 }
+
+# Clean up the folder (keep only the ZIP)
+try { Remove-Item $portableFolder -Recurse -Force } catch {}
 
 # -------------------------------------------------------------------------
 # 3. APK
@@ -106,7 +114,7 @@ if ($apk) {
     Ok ("FOLD.apk  ->  " + (SizeMB "$release\FOLD.apk") + " MB   (from: " + $apk.Name + ")")
 } else {
     Warn "No APK found. Build it first with:"
-    Warn "  cd android && .\gradlew assembleRelease"
+    Warn "  cd android; .\gradlew assembleRelease"
 }
 
 # -------------------------------------------------------------------------
