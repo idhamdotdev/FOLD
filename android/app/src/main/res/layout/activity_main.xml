@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="#0B1324">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="24dp">
+
+        <!-- Top Gray Bar -->
+        <View
+            android:id="@+id/topBar"
+            android:layout_width="0dp"
+            android:layout_height="24dp"
+            android:background="#D9D9D9"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="8dp" />
+
+        <!-- Title Container: F O L D by @idham.dev -->
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="F O L D"
+            android:textColor="#FFFFFF"
+            android:textSize="60sp"
+            android:fontFamily="@font/lalezar"
+            app:layout_constraintTop_toBottomOf="@id/topBar"
+            app:layout_constraintStart_toStartOf="@id/topBar"
+            android:layout_marginTop="16dp" />
+
+        <TextView
+            android:id="@+id/tvSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="by @idham.dev"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:fontFamily="@font/lalezar"
+            app:layout_constraintBaseline_toBaselineOf="@id/tvTitle"
+            app:layout_constraintStart_toEndOf="@id/tvTitle"
+            android:layout_marginStart="12dp" />
+
+        <!-- RadioButton USB -->
+        <RadioButton
+            android:id="@+id/rbUsb"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="  USB"
+            android:textColor="#FFFFFF"
+            android:textSize="28sp"
+            android:fontFamily="@font/lalezar"
+            android:button="@null"
+            android:drawableStart="@drawable/custom_radio_button"
+            android:drawablePadding="16dp"
+            app:layout_constraintTop_toBottomOf="@id/tvTitle"
+            app:layout_constraintStart_toStartOf="@id/topBar"
+            android:layout_marginTop="16dp" />
+
+        <!-- WI-FI row containing RadioButton WI - FI and IP Address EditText -->
+        <LinearLayout
+            android:id="@+id/wifiRow"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            app:layout_constraintTop_toBottomOf="@id/rbUsb"
+            app:layout_constraintStart_toStartOf="@id/topBar"
+            app:layout_constraintEnd_toEndOf="@id/topBar"
+            android:layout_marginTop="16dp">
+
+            <RadioButton
+                android:id="@+id/rbWifi"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="  WI - FI"
+                android:textColor="#FFFFFF"
+                android:textSize="28sp"
+                android:fontFamily="@font/lalezar"
+                android:button="@null"
+                android:drawableStart="@drawable/custom_radio_button"
+                android:drawablePadding="16dp" />
+
+            <EditText
+                android:id="@+id/etIpAddress"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginStart="16dp"
+                android:background="@drawable/input_background"
+                android:hint="Enter PC's IP Adress"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#888888"
+                android:textSize="18sp"
+                android:fontFamily="@font/lalezar"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:singleLine="true"
+                android:inputType="text"
+                android:gravity="center_vertical" />
+        </LinearLayout>
+
+        <!-- Connect button at bottom right -->
+        <Button
+            android:id="@+id/btnConnect"
+            android:layout_width="220dp"
+            android:layout_height="64dp"
+            android:text="CONNECT"
+            android:textColor="#FFFFFF"
+            android:textSize="28sp"
+            android:fontFamily="@font/lalezar"
+            android:background="@drawable/button_connect_background"
+            app:backgroundTint="@null"
+            app:layout_constraintTop_toBottomOf="@id/wifiRow"
+            app:layout_constraintEnd_toEndOf="@id/topBar"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintHorizontal_bias="1.0"
+            app:layout_constraintVertical_bias="1.0"
+            android:layout_marginTop="32dp"
+            android:layout_marginBottom="24dp" />
+
+        <!-- Status Text above Connect Button -->
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Can't Connect, Try Again...."
+            android:textColor="#A97979"
+            android:textSize="18sp"
+            android:fontFamily="@font/lalezar"
+            android:visibility="gone"
+            app:layout_constraintBottom_toTopOf="@id/btnConnect"
+            app:layout_constraintEnd_toEndOf="@id/btnConnect"
+            android:layout_marginBottom="8dp" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</ScrollView>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- Full-screen H264 hardware renderer -->
+    <com.FOLD.H264SurfaceView
+        android:id="@+id/h264View"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
+
+    <!-- Status overlay: shown via Android UI (never via lockCanvas) so the
+         SurfaceView surface stays in a clean state for MediaCodec.configure() -->
+    <LinearLayout
+        android:id="@+id/statusOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="24dp">
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:fontFamily="monospace"
+            android:gravity="center"
+            android:paddingHorizontal="20dp"
+            android:paddingVertical="14dp"
+            android:background="#CC000028"
+            android:text="Initializing…"/>
+    </LinearLayout>
+
+    <!-- Translucent disconnect button (tap to go back) -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnDisconnect"
+        android:layout_width="wrap_content"
+        android:layout_height="40dp"
+        android:text="✕ Disconnect"
+        android:textSize="12sp"
+        android:textAllCaps="false"
+        android:alpha="0.6"
+        android:visibility="gone"
+        app:backgroundTint="#CC000000"
+        app:cornerRadius="20dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="16dp"/>
+
+</FrameLayout>

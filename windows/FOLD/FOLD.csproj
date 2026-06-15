@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.22621.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <SelfContained>false</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>false</PublishSingleFile>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <ApplicationIcon>Resources\tray_icon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>FOLD</AssemblyName>
+    <RootNamespace>FOLD</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyTitle>FOLD by @idham.dev</AssemblyTitle>
+    <Product>FOLD by @idham.dev</Product>
+    <Description>FOLD by @idham.dev</Description>
+    <Title>FOLD by @idham.dev</Title>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Sdcb.FFmpeg" Version="7.0.0" />
+    <PackageReference Include="Sdcb.FFmpeg.runtime.windows-x64" Version="7.0.0" />
+    <PackageReference Include="SharpDX.Direct3D11" Version="4.2.0" />
+    <PackageReference Include="SharpDX.DXGI" Version="4.2.0" />
+    <PackageReference Include="System.Text.Json" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\tray_icon.ico" />
+    <EmbeddedResource Include="Resources\Lalezar-Regular.ttf" />
+  </ItemGroup>
+
+  <!--
+    Post-publish cleanup — removes non-essential executables and debug files.
+    Equivalent to removing ffmpeg.exe in Sticam: same idea, keep the DLLs.
+    - createdump.exe : .NET crash dump tool, not needed by end users (~70 KB)
+    - FOLD.pdb       : debug symbols, not needed for distribution
+    - *.log          : any leftover log files from previous runs
+    All DLL files are kept — Sdcb.FFmpeg loads them all at startup.
+  -->
+  <Target Name="CleanPublishOutput" AfterTargets="Publish">
+    <ItemGroup>
+      <_DistroClean Include="$(PublishDir)createdump.exe" />
+      <_DistroClean Include="$(PublishDir)*.pdb" />
+      <_DistroClean Include="$(PublishDir)*.log" />
+    </ItemGroup>
+    <Delete Files="@(_DistroClean)" />
+    <Message Text="Publish cleaned: @(_DistroClean->'%(Filename)%(Extension)', ', ')" Importance="high" />
+  </Target>
+</Project>

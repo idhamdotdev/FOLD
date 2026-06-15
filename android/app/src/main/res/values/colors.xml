@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Background -->
+    <color name="bg_dark">#FF0F0F0F</color>
+    <color name="bg_surface">#FF1E1E1E</color>
+
+    <!-- Text -->
+    <color name="text_primary">#FFFFFFFF</color>
+    <color name="text_secondary">#FFAAAAAA</color>
+
+    <!-- Accent (blue) -->
+    <color name="accent">#FF4285F4</color>
+    <color name="accent_dark">#FF2A56C6</color>
+
+    <!-- Semantic -->
+    <color name="error">#FFFF6B6B</color>
+    <color name="success">#FF4CAF50</color>
+</resources>

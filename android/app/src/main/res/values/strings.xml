@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FOLD</string>
+    <string name="subtitle">Enter your PC\'s IP address.\nFor USB debugging, use 127.0.0.1.</string>
+    <string name="hint_ip">PC IP Address or 127.0.0.1</string>
+    <string name="connect">Connect</string>
+    <string name="use_usb">Use USB Connection</string>
+    <string name="footer_hint">Ports: Stream 8765 · Touch 8766</string>
+</resources>

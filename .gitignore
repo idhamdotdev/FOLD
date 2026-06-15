@@ -1,0 +1,42 @@
+# ── Windows / .NET ──────────────────────────────────────────────────────────
+**/bin/
+**/obj/
+**/publish/
+**/publish2/
+**/_tmp_standalone/
+*.user
+*.suo
+.vs/
+
+# ── Android ─────────────────────────────────────────────────────────────────
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/*.keystore
+android/*.jks
+*.apk
+*.aab
+
+# ── IDEs ────────────────────────────────────────────────────────────────────
+.idea/
+**/.idea/
+.vscode/
+**/.vscode/
+
+# ── Binaries & Large Files ──────────────────────────────────────────────────
+*.exe
+*.zip
+release/
+
+# ── Logs & Temp Files ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+stream_log.txt
+stream_log.txt.pixels.txt
+
+# ── Media ───────────────────────────────────────────────────────────────────
+FOLD_media/*
+!FOLD_media/*icon*
+
