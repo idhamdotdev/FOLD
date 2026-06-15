@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 
 namespace FOLD.Usb;
 
@@ -19,7 +20,14 @@ public sealed class AdbForwarder : IDisposable
     private readonly int _streamPort;
     private readonly int _touchPort;
 
-    // Search order: app folder first, relative tools directories, known SDK paths, then PATH
+    /// <summary>Path where the embedded adb.exe is extracted to.</summary>
+    private static readonly string ExtractedAdbDir =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FOLD", "tools");
+
+    private static readonly string ExtractedAdbPath =
+        Path.Combine(ExtractedAdbDir, "adb.exe");
+
+    // Search order: app folder first, relative tools directories, extracted cache, known SDK paths, then PATH
     private static readonly string[] AdbSearchPaths =
     [
         Path.Combine(AppContext.BaseDirectory, "adb.exe"),
@@ -29,6 +37,7 @@ public sealed class AdbForwarder : IDisposable
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "tools", "adb.exe"),
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "tools", "adb.exe"),
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "tools", "adb.exe"),
+        ExtractedAdbPath,
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Android", "Sdk", "platform-tools", "adb.exe"),
         "adb"    // falls back to PATH
     ];
@@ -107,6 +116,7 @@ public sealed class AdbForwarder : IDisposable
 
     private static string? FindAdb()
     {
+        // Check all known locations first
         foreach (var path in AdbSearchPaths)
         {
             if (File.Exists(path))   return path;
@@ -117,7 +127,34 @@ public sealed class AdbForwarder : IDisposable
                 if (inPath != null) return inPath;
             }
         }
-        return null;
+
+        // Last resort: extract the embedded adb.exe from our resources
+        return ExtractEmbeddedAdb();
+    }
+
+    /// <summary>
+    /// Extracts the embedded adb.exe resource to %LOCALAPPDATA%\FOLD\tools\adb.exe.
+    /// Returns the path on success, or null if the resource isn't available.
+    /// </summary>
+    private static string? ExtractEmbeddedAdb()
+    {
+        try
+        {
+            var asm = Assembly.GetExecutingAssembly();
+            using var stream = asm.GetManifestResourceStream("FOLD.Resources.adb.exe");
+            if (stream == null) return null;
+
+            Directory.CreateDirectory(ExtractedAdbDir);
+
+            using var fs = new FileStream(ExtractedAdbPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            stream.CopyTo(fs);
+
+            return ExtractedAdbPath;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string? FindInPath(string exe)
