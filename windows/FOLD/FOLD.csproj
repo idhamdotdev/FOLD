@@ -32,21 +32,11 @@
 
   <!--
     Post-publish cleanup — removes non-essential executables and debug files.
-    Equivalent to removing ffmpeg.exe in Sticam: same idea, keep the DLLs.
     - createdump.exe : .NET crash dump tool, not needed by end users (~70 KB)
     - FOLD.pdb       : debug symbols, not needed for distribution
     - *.log          : any leftover log files from previous runs
-    All DLL files are kept — Sdcb.FFmpeg loads them all at startup.
+    All DLL files are kept — Sdcb.FFmpeg loads them at startup.
   -->
-  <Target Name="ExcludeUnusedFFmpeg" AfterTargets="ComputeFilesToPublish" BeforeTargets="GenerateSingleFileBundle">
-    <ItemGroup>
-      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::new('%(Filename)').StartsWith('avdevice-'))" />
-      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::new('%(Filename)').StartsWith('avfilter-'))" />
-      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::new('%(Filename)').StartsWith('avformat-'))" />
-      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::new('%(Filename)').StartsWith('postproc-'))" />
-      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::new('%(Filename)').StartsWith('swresample-'))" />
-    </ItemGroup>
-  </Target>
 
   <Target Name="CleanPublishOutput" AfterTargets="Publish">
     <ItemGroup>

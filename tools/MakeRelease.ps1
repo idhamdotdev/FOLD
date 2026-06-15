@@ -39,7 +39,7 @@ if (Test-Path $tmp1) { Remove-Item $tmp1 -Recurse -Force }
 dotnet publish $csproj -c Release -r win-x64 `
     "-p:SelfContained=true" `
     "-p:PublishSingleFile=true" `
-    "-p:IncludeNativeLibrariesForSelfExtract=false" `
+    "-p:IncludeNativeLibrariesForSelfExtract=true" `
     -o $tmp1 | Out-Null
 
 $exeSrc = Join-Path $tmp1 "FOLD.exe"
