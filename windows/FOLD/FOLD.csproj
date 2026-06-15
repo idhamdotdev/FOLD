@@ -31,6 +31,7 @@
     <EmbeddedResource Include="Resources\tray_icon.ico" />
     <EmbeddedResource Include="Resources\Lalezar-Regular.ttf" />
     <EmbeddedResource Include="Resources\adb.exe" />
+    <EmbeddedResource Include="Resources\vdd_setup.exe" />
   </ItemGroup>
 
   <!--

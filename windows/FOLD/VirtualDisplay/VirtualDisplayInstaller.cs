@@ -79,37 +79,39 @@ public static class VirtualDisplayInstaller
 
         try
         {
-            // ── Step 1: Download (or use cache) ──────────────────────────
+            // ── Step 1: Extract (or use cache) ──────────────────────────
             if (!IsSetupCached)
             {
-                lbl.Text = "⬇  Downloading Virtual Display Driver...";
+                lbl.Text = "📦  Extracting Virtual Display Driver installer...";
                 progress.Refresh();
 
-                progressBar.Style = ProgressBarStyle.Continuous;
-                progressBar.Maximum = 100;
-
-                await DownloadSetupAsync((percent, totalRead) =>
+                await Task.Run(() =>
                 {
                     try
                     {
-                        if (progress.IsDisposed || !progress.IsHandleCreated) return;
-                        progress.Invoke(() =>
+                        Directory.CreateDirectory(CacheDir);
+                        var asm = System.Reflection.Assembly.GetExecutingAssembly();
+                        using var stream = asm.GetManifestResourceStream("FOLD.Resources.vdd_setup.exe");
+                        if (stream == null)
                         {
-                            if (percent >= 0)
-                            {
-                                progressBar.Value = Math.Min(percent, 100);
-                                lbl.Text = $"⬇  Downloading driver installer ({percent}%)...";
-                            }
-                            else
-                            {
-                                lbl.Text = $"⬇  Downloading driver installer ({(totalRead / 1024.0 / 1024.0):F1} MB)...";
-                            }
-                        });
-                    }
-                    catch { }
-                });
+                            throw new Exception("Embedded vdd_setup.exe resource not found.");
+                        }
 
-                progressBar.Style = ProgressBarStyle.Marquee;
+                        var tempPath = CachedSetupPath + ".tmp";
+                        using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                        {
+                            stream.CopyTo(fs);
+                        }
+
+                        if (File.Exists(CachedSetupPath))
+                            File.Delete(CachedSetupPath);
+                        File.Move(tempPath, CachedSetupPath);
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new Exception($"Failed to extract driver setup: {ex.Message}", ex);
+                    }
+                });
             }
             else
             {
@@ -258,48 +260,6 @@ public static class VirtualDisplayInstaller
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Downloads the setup executable with progress reporting and saves to cache.
-    /// </summary>
-    private static async Task DownloadSetupAsync(Action<int, long> reportProgress)
-    {
-        Directory.CreateDirectory(CacheDir);
-
-        using var client = new HttpClient();
-        client.Timeout = TimeSpan.FromMinutes(10);
-        client.DefaultRequestHeaders.Add("User-Agent", "FOLD/1.0");
-
-        using var response = await client.GetAsync(DOWNLOAD_URL, HttpCompletionOption.ResponseHeadersRead);
-        response.EnsureSuccessStatusCode();
-
-        var contentLength = response.Content.Headers.ContentLength ?? 0;
-        using var contentStream = await response.Content.ReadAsStreamAsync();
-
-        var tempPath = CachedSetupPath + ".tmp";
-        var buffer = new byte[8192];
-        var totalBytesRead = 0L;
-
-        using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
-        {
-            int bytesRead;
-            while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-            {
-                await fs.WriteAsync(buffer, 0, bytesRead);
-                totalBytesRead += bytesRead;
-
-                if (contentLength > 0)
-                    reportProgress((int)((totalBytesRead * 100) / contentLength), totalBytesRead);
-                else
-                    reportProgress(-1, totalBytesRead);
-            }
-        }
-
-        // Atomic rename: only put the final file in place after full download
-        if (File.Exists(CachedSetupPath))
-            File.Delete(CachedSetupPath);
-        File.Move(tempPath, CachedSetupPath);
-    }
 
     /// <summary>
     /// Runs the VDD setup.exe with silent flags and elevated privileges.
