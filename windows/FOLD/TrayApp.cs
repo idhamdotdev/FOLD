@@ -416,15 +416,20 @@ public sealed class TrayApp : IDisposable
         };
 
         var quitItem = new ToolStripMenuItem("✖ Quit");
-        quitItem.Click += (_, _) =>
-        {
-            StopStreaming();
-            _trayIcon.Visible = false;
-            Application.Exit();
-        };
+        quitItem.Click += (_, _) => Shutdown();
 
         menu.Items.AddRange(new ToolStripItem[] { openItem, ipItem, new ToolStripSeparator(), quitItem });
         return menu;
+    }
+
+    // ── Shutdown ───────────────────────────────────────────────────────
+
+    /// <summary>Cleanly stops all services, hides the tray icon, and exits the application.</summary>
+    public void Shutdown()
+    {
+        StopStreaming();
+        _trayIcon.Visible = false;
+        Application.Exit();
     }
 
     // ── Window show/restore ────────────────────────────────────────────

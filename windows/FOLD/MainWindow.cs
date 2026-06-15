@@ -71,7 +71,10 @@ public sealed class MainWindow : Form
         };
         FormClosing += (_, e) =>
         {
-            if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; Hide(); _app.ShowBalloon("FOLD is in the tray."); }
+            if (e.CloseReason == CloseReason.UserClosing)
+            {
+                _app.Shutdown();
+            }
         };
     }
 
