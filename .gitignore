@@ -28,6 +28,7 @@ android/*.jks
 *.exe
 *.zip
 release/
+release2/
 
 # ── Logs & Temp Files ───────────────────────────────────────────────────────
 .DS_Store
