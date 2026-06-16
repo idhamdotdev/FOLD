@@ -87,6 +87,16 @@ class DisplayActivity : AppCompatActivity() {
             }
         }
 
+        // Route real-time stream stats to the top-left overlay
+        b.h264View.statsListener = { stats ->
+            if (stats.isEmpty()) {
+                b.tvStats.visibility = View.GONE
+            } else {
+                b.tvStats.text = stats
+                b.tvStats.visibility = View.VISIBLE
+            }
+        }
+
         // Setup listener for the disconnect button overlay
         b.btnDisconnect.setOnClickListener {
             showExitConfirmationDialog()

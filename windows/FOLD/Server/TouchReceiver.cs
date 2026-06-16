@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -13,13 +14,13 @@ using FOLD.VirtualDisplay;
 namespace FOLD.Server;
 
 /// <summary>
-/// HTTP server listening on port 8766 for touch events POSTed by the Android app.
-/// Each request body is a JSON TouchEvent that is injected as mouse input via SendInput.
+/// TCP-based lightweight HTTP server listening on port 8766 for touch events POSTed by the Android app.
+/// This replaces HttpListener to run without administrator privileges.
 /// </summary>
 public sealed class TouchReceiver : IDisposable
 {
     private readonly int _port;
-    private HttpListener? _listener;
+    private TcpListener? _listener;
     private CancellationTokenSource? _cts;
 
     public H264Server? Server { get; set; }
@@ -34,8 +35,12 @@ public sealed class TouchReceiver : IDisposable
     public void Start()
     {
         _cts      = new CancellationTokenSource();
-        _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://+:{_port}/");
+        _listener = new TcpListener(IPAddress.Any, _port);
+        try
+        {
+            _listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+        }
+        catch { }
         _listener.Start();
         Task.Run(() => AcceptLoop(_cts.Token));
     }
@@ -43,8 +48,7 @@ public sealed class TouchReceiver : IDisposable
     public void Stop()
     {
         _cts?.Cancel();
-        try { _listener?.Stop(); }  catch { /* ignore */ }
-        try { _listener?.Close(); } catch { /* ignore */ }
+        try { _listener?.Stop(); } catch { /* ignore */ }
     }
 
     private async Task AcceptLoop(CancellationToken ct)
@@ -53,112 +57,137 @@ public sealed class TouchReceiver : IDisposable
         {
             try
             {
-                var ctx = await _listener!.GetContextAsync().ConfigureAwait(false);
-                _ = Task.Run(() => HandleTouch(ctx), ct);
+                var client = await _listener!.AcceptTcpClientAsync(ct).ConfigureAwait(false);
+                _ = Task.Run(() => HandleClient(client), ct);
             }
-            catch (HttpListenerException) when (ct.IsCancellationRequested) { break; }
+            catch (Exception) when (ct.IsCancellationRequested) { break; }
             catch { break; }
         }
     }
 
-    private async Task HandleTouch(HttpListenerContext ctx)
+    private async Task HandleClient(TcpClient client)
     {
-        // CORS — preflight support
-        ctx.Response.Headers["Access-Control-Allow-Origin"]  = "*";
-        ctx.Response.Headers["Access-Control-Allow-Methods"] = "POST, OPTIONS";
-        ctx.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type";
-
-        if (ctx.Request.HttpMethod == "OPTIONS")
+        using (client)
         {
-            ctx.Response.StatusCode = 204;
-            ctx.Response.Close();
-            return;
-        }
-
-        try
-        {
-            using var reader = new StreamReader(ctx.Request.InputStream, Encoding.UTF8);
-            var body = await reader.ReadToEndAsync().ConfigureAwait(false);
-
-            if (ctx.Request.RawUrl?.Contains("/config") == true)
+            try
             {
-                var cfg = JsonSerializer.Deserialize<DisplayConfigRequest>(body, JsonOpts);
-                if (cfg != null)
+                using var stream = client.GetStream();
+                using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
+                
+                string? requestLine = await reader.ReadLineAsync().ConfigureAwait(false);
+                if (string.IsNullOrEmpty(requestLine)) return;
+
+                var parts = requestLine.Split(' ');
+                if (parts.Length < 2) return;
+                string method = parts[0];
+                string path = parts[1];
+
+                int contentLength = 0;
+                string? line;
+                while (!string.IsNullOrEmpty(line = await reader.ReadLineAsync().ConfigureAwait(false)))
                 {
-                    // Auto-detect/activate virtual display on client connect
-                    if (Server?.ServerApp != null)
+                    if (line.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase))
                     {
-                        Server.ServerApp.AutoDetectVirtualMonitor();
+                        int.TryParse(line.Substring("Content-Length:".Length).Trim(), out contentLength);
                     }
+                }
 
-                    IntPtr activeMonitor = TouchInjector.SelectedMonitorHandle;
-                    if (activeMonitor == IntPtr.Zero && Server?.ServerApp != null)
+                // Handle CORS preflight
+                if (method == "OPTIONS")
+                {
+                    string corsResponse = "HTTP/1.1 204 No Content\r\n" +
+                                          "Access-Control-Allow-Origin: *\r\n" +
+                                          "Access-Control-Allow-Methods: POST, OPTIONS\r\n" +
+                                          "Access-Control-Allow-Headers: Content-Type\r\n" +
+                                          "Connection: close\r\n\r\n";
+                    var corsBytes = Encoding.UTF8.GetBytes(corsResponse);
+                    await stream.WriteAsync(corsBytes, 0, corsBytes.Length).ConfigureAwait(false);
+                    return;
+                }
+
+                // Read request body
+                char[] bodyBuffer = new char[contentLength];
+                int read = 0;
+                while (read < contentLength)
+                {
+                    int n = await reader.ReadAsync(bodyBuffer, read, contentLength - read).ConfigureAwait(false);
+                    if (n <= 0) break;
+                    read += n;
+                }
+                string body = new string(bodyBuffer);
+
+                if (path.Contains("/config", StringComparison.OrdinalIgnoreCase))
+                {
+                    var cfg = JsonSerializer.Deserialize<DisplayConfigRequest>(body, JsonOpts);
+                    if (cfg != null)
                     {
-                        activeMonitor = Server.ServerApp.SelectedMonitor;
-                    }
-
-                    if (activeMonitor != IntPtr.Zero)
-                    {
-                        int useW = Server?.ServerApp != null && Server.ServerApp.ForceWidth > 0 ? Server.ServerApp.ForceWidth : cfg.Width;
-                        int useH = Server?.ServerApp != null && Server.ServerApp.ForceHeight > 0 ? Server.ServerApp.ForceHeight : cfg.Height;
-                        int useFps = Server?.ServerApp != null && Server.ServerApp.ForceWidth > 0 ? Server.ServerApp.ForceFps : cfg.RefreshRate;
-
-                        // Run on main thread context or threadpool, ChangeDisplaySettingsEx is thread-safe
-                        VirtualDisplayManager.SetMonitorResolution(
-                            activeMonitor,
-                            useW,
-                            useH,
-                            useFps
-                        );
-
                         if (Server?.ServerApp != null)
                         {
-                            Server.ServerApp.RestartCaptureSession(useW, useH);
+                            Server.ServerApp.RegisterDeviceResolution(cfg.Width, cfg.Height, cfg.RefreshRate);
+                            Server.ServerApp.AutoDetectVirtualMonitor();
                         }
 
-                    if (Server != null)
-                    {
-                        Server.TargetFps = useFps;
-                        if (useW >= 3800)
+                        IntPtr activeMonitor = TouchInjector.SelectedMonitorHandle;
+                        if (activeMonitor == IntPtr.Zero && Server?.ServerApp != null)
                         {
-                            Server.BitrateMbps = 45; // Max 4K quality over USB/WiFi
+                            activeMonitor = Server.ServerApp.SelectedMonitor;
                         }
-                        else if (useW >= 2500)
+
+                        if (activeMonitor != IntPtr.Zero)
                         {
-                            Server.BitrateMbps = 24; // Ultra-crisp 2.5K
-                        }
-                        else if (useW >= 1900)
-                        {
-                            Server.BitrateMbps = 16; // Crisp 1080p
-                        }
-                        else
-                        {
-                            Server.BitrateMbps = 10;
+                            int useW = Server?.ServerApp != null && Server.ServerApp.ForceWidth > 0 ? Server.ServerApp.ForceWidth : cfg.Width;
+                            int useH = Server?.ServerApp != null && Server.ServerApp.ForceHeight > 0 ? Server.ServerApp.ForceHeight : cfg.Height;
+                            int useFps = Server?.ServerApp != null && Server.ServerApp.ForceWidth > 0 ? Server.ServerApp.ForceFps : cfg.RefreshRate;
+
+                            VirtualDisplayManager.SetMonitorResolution(activeMonitor, useW, useH, useFps);
+
+                            if (Server?.ServerApp != null)
+                            {
+                                Server.ServerApp.RestartCaptureSession(useW, useH);
+                            }
+
+                            if (Server != null)
+                            {
+                                Server.TargetFps = useFps;
+                                if (useW >= 3800) Server.BitrateMbps = 45;
+                                else if (useW >= 2500) Server.BitrateMbps = 24;
+                                else if (useW >= 1900) Server.BitrateMbps = 16;
+                                else Server.BitrateMbps = 10;
+                            }
                         }
                     }
                 }
-            }
-            }
-            else
-            {
-                var evt = JsonSerializer.Deserialize<TouchEvent>(body, JsonOpts);
-                if (evt != null)
-                    TouchInjector.InjectTouch(evt);
-            }
+                else
+                {
+                    var evt = JsonSerializer.Deserialize<TouchEvent>(body, JsonOpts);
+                    if (evt != null)
+                    {
+                        TouchInjector.InjectTouch(evt);
+                    }
+                }
 
-            ctx.Response.StatusCode = 200;
-        }
-        catch (JsonException)
-        {
-            ctx.Response.StatusCode = 400;
-        }
-        catch (Exception)
-        {
-            ctx.Response.StatusCode = 500;
-        }
-        finally
-        {
-            try { ctx.Response.Close(); } catch { /* ignore */ }
+                string successResponse = "HTTP/1.1 200 OK\r\n" +
+                                         "Access-Control-Allow-Origin: *\r\n" +
+                                         "Access-Control-Allow-Methods: POST, OPTIONS\r\n" +
+                                         "Access-Control-Allow-Headers: Content-Type\r\n" +
+                                         "Content-Length: 0\r\n" +
+                                         "Connection: close\r\n\r\n";
+                var resBytes = Encoding.UTF8.GetBytes(successResponse);
+                await stream.WriteAsync(resBytes, 0, resBytes.Length).ConfigureAwait(false);
+            }
+            catch
+            {
+                try
+                {
+                    using var stream = client.GetStream();
+                    string errResponse = "HTTP/1.1 500 Internal Server Error\r\n" +
+                                         "Access-Control-Allow-Origin: *\r\n" +
+                                         "Connection: close\r\n\r\n";
+                    var errBytes = Encoding.UTF8.GetBytes(errResponse);
+                    await stream.WriteAsync(errBytes, 0, errBytes.Length).ConfigureAwait(false);
+                }
+                catch {}
+            }
         }
     }
 

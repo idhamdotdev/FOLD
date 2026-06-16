@@ -25,25 +25,43 @@ public sealed class MainWindow : Form
     private Panel  _pgAbout    = null!;
 
     private Label         _lblIp  = null!;
+    private FlatComboBox  _cmbMon = null!;
+    private RefreshButton _btnRefresh = null!;
     private FlatComboBox  _cmbRes = null!;
     private Button        _btnSS  = null!;
+    private Button        _btnApply = null!;
     private Button        _btnUsb = null!;
 
-    // Palette
-    static readonly Color CB      = Color.FromArgb(11, 22, 41);
-    static readonly Color CS      = Color.FromArgb(27, 46, 80);
-    static readonly Color CMenu   = Color.FromArgb(217, 217, 217);
-    static readonly Color CActive = Color.FromArgb(51, 51, 51);
-    static readonly Color CBdr    = Color.FromArgb(217, 217, 217);
-    static readonly Color CC      = Color.FromArgb(17, 27, 54);
-    static readonly Color CGreen  = Color.FromArgb(0, 206, 128);
-    static readonly Color CPurp   = Color.FromArgb(128, 102, 230);
+    // Scaling Factor
+    private float _scale = 1.0f;
+    private int Scale(int val) => (int)(val * _scale);
+    private float Scale(float val) => val * _scale;
 
-    const int SW = 155; // sidebar width
+    // Pending settings for Apply
+    private int _pendingResIndex;
+    private IntPtr _pendingMonitorHandle;
+    private string _pendingMonitorLabel = "";
+
+    // Palette (Premium Navy & Teal Theme matching idhamdev-pallete)
+    static readonly Color CB      = Color.FromArgb(15, 23, 42);   // #0F172A - Deep Navy 1 background
+    static readonly Color CS      = Color.FromArgb(16, 34, 77);   // #10224D - Deep Navy 2 sidebar
+    static readonly Color CMenu   = Color.Transparent;            // Inactive navigation buttons
+    static readonly Color CActive = Color.FromArgb(56, 56, 56);   // #383838 - Active nav background (Tertiary UI)
+    static readonly Color CBdr    = Color.FromArgb(217, 217, 217); // #D9D9D9 - Divider/Border color
+    static readonly Color CC      = Color.FromArgb(22, 32, 56);   // #162038 - Deep Navy 3 card container
+    static readonly Color CGreen  = Color.FromArgb(30, 204, 145); // Teal / Green Accent
+    static readonly Color CPurp   = Color.FromArgb(128, 102, 230); // Purple Accent
+
+
+    private int SW => Scale(170); // Sidebar width (scaled)
 
     public MainWindow(TrayApp app)
     {
         _app = app;
+        using (var g = CreateGraphics())
+        {
+            _scale = g.DpiX / 96f;
+        }
         SuspendLayout();
         SetupForm();
         BuildLayout();
@@ -56,7 +74,7 @@ public sealed class MainWindow : Form
     void SetupForm()
     {
         Text            = "FOLD by @idham.dev";
-        ClientSize      = new Size(800, 480);
+        ClientSize      = new Size(Scale(800), Scale(480));
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox     = false;
         StartPosition   = FormStartPosition.CenterScreen;
@@ -90,18 +108,18 @@ public sealed class MainWindow : Form
 
     void BuildSidebar()
     {
-        _sidebar.Controls.Add(new Label { Text = "F O L D",       Font = new Font(FontLoader.Lalezar, 22f), ForeColor = Color.White, TextAlign = ContentAlignment.BottomCenter, Location = new Point(0, 8),  Size = new Size(SW, 44) });
-        _sidebar.Controls.Add(new Label { Text = "by @idham.dev", Font = new Font(FontLoader.Lalezar, 9f),  ForeColor = Color.White, TextAlign = ContentAlignment.TopCenter,    Location = new Point(0, 52), Size = new Size(SW, 24) });
-        _sidebar.Controls.Add(new Panel { Location = new Point(0, 82),  Size = new Size(SW, 2), BackColor = CBdr });
+        _sidebar.Controls.Add(new Label { Text = "F O L D",       Font = FontLoader.CreateFont(Scale(24f), FontStyle.Bold), ForeColor = Color.White, TextAlign = ContentAlignment.BottomCenter, Location = new Point(0, Scale(8)),  Size = new Size(SW, Scale(44)) });
+        _sidebar.Controls.Add(new Label { Text = "by @idham.dev", Font = FontLoader.CreateFont(Scale(9.5f)), ForeColor = Color.White, TextAlign = ContentAlignment.TopCenter,    Location = new Point(0, Scale(52)), Size = new Size(SW, Scale(24)) });
+        _sidebar.Controls.Add(new Panel { Location = new Point(0, Scale(82)),  Size = new Size(SW, Scale(1)), BackColor = CBdr });
 
-        _navSet = NavBtn("Settings");  _navSet.Location = new Point(0, 84);
-        _navAdv = NavBtn("Advanced");  _navAdv.Location = new Point(0, 131);
-        _navAbt = NavBtn("About");     _navAbt.Location = new Point(0, 178);
+        _navSet = NavBtn("Settings");  _navSet.Location = new Point(0, Scale(83));
+        _navAdv = NavBtn("Advanced");  _navAdv.Location = new Point(0, Scale(140));
+        _navAbt = NavBtn("About");     _navAbt.Location = new Point(0, Scale(197));
 
         _sidebar.Controls.Add(_navSet);
         _sidebar.Controls.Add(_navAdv);
         _sidebar.Controls.Add(_navAbt);
-        _sidebar.Controls.Add(new Panel { Location = new Point(0, 225), Size = new Size(SW, 2), BackColor = CBdr });
+        _sidebar.Controls.Add(new Panel { Location = new Point(0, Scale(254)), Size = new Size(SW, Scale(1)), BackColor = CBdr });
 
         _navSet.Click += (_, _) => SelectNav(_navSet, _pgSettings);
         _navAdv.Click += (_, _) => SelectNav(_navAdv, _pgAdvanced);
@@ -113,14 +131,14 @@ public sealed class MainWindow : Form
         var b = new Button
         {
             Text = text, FlatStyle = FlatStyle.Flat,
-            BackColor = CMenu, ForeColor = Color.White,
-            Font = new Font(FontLoader.Lalezar, 16f),
+            BackColor = Color.FromArgb(217, 217, 217), ForeColor = Color.White,
+            Font = FontLoader.CreateFont(Scale(15f), FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleCenter,
-            Cursor = Cursors.Hand, Size = new Size(SW, 47),
+            Cursor = Cursors.Hand, Size = new Size(SW, Scale(57)),
         };
         b.FlatAppearance.BorderSize = 0;
-        b.FlatAppearance.MouseOverBackColor = CMenu;
-        b.FlatAppearance.MouseDownBackColor = CMenu;
+        b.FlatAppearance.MouseOverBackColor = Color.FromArgb(200, 200, 200);
+        b.FlatAppearance.MouseDownBackColor = Color.FromArgb(180, 180, 180);
         return b;
     }
 
@@ -129,9 +147,10 @@ public sealed class MainWindow : Form
         foreach (var b in new[] { _navSet, _navAdv, _navAbt })
         {
             bool on = b == active;
-            b.BackColor = on ? CActive : CMenu;
-            b.FlatAppearance.MouseOverBackColor = on ? CActive : CMenu;
-            b.FlatAppearance.MouseDownBackColor = on ? CActive : CMenu;
+            b.BackColor = on ? CActive : Color.FromArgb(217, 217, 217);
+            b.ForeColor = Color.White;
+            b.FlatAppearance.MouseOverBackColor = on ? CActive : Color.FromArgb(200, 200, 200);
+            b.FlatAppearance.MouseDownBackColor = on ? CActive : Color.FromArgb(180, 180, 180);
         }
         foreach (Control c in _host.Controls) c.Visible = c == page;
         RefreshStatus();
@@ -155,49 +174,158 @@ public sealed class MainWindow : Form
 
     // ── Settings ─────────────────────────────────────────────────────────
 
+    private struct MonitorComboItem
+    {
+        public IntPtr Handle { get; set; }
+        public string Label { get; set; }
+        public override string ToString() => Label;
+    }
+
+    private void PopulateMonitors()
+    {
+        _cmbMon.Items.Clear();
+        var monitors = VirtualDisplay.VirtualDisplayManager.GetAllMonitors();
+        
+        int selectedIndex = 0;
+        for (int i = 0; i < monitors.Count; i++)
+        {
+            var m = monitors[i];
+            _cmbMon.Items.Add(new MonitorComboItem { Handle = m.Handle, Label = m.Label });
+            if (m.Handle == _app.SelectedMonitor)
+            {
+                selectedIndex = i;
+            }
+            else if (_app.SelectedMonitor == IntPtr.Zero && m.IsPrimary)
+            {
+                selectedIndex = i;
+            }
+        }
+
+        if (_cmbMon.Items.Count > 0)
+        {
+            _cmbMon.SelectedIndex = selectedIndex;
+            var item = (MonitorComboItem)_cmbMon.Items[selectedIndex];
+            _pendingMonitorHandle = item.Handle;
+            _pendingMonitorLabel = item.Label;
+        }
+    }
+
+    public void UpdateResolutionDropdown()
+    {
+        if (_cmbRes == null) return;
+
+        _cmbRes.Items.Clear();
+        lock (_app.ResolutionOptions)
+        {
+            foreach (var opt in _app.ResolutionOptions)
+            {
+                _cmbRes.Items.Add(opt);
+            }
+        }
+
+        int selectedIndex = 0;
+        for (int i = 0; i < _app.ResolutionOptions.Count; i++)
+        {
+            var opt = _app.ResolutionOptions[i];
+            if (opt.Width == _app.ForceWidth && opt.Height == _app.ForceHeight)
+            {
+                selectedIndex = i;
+                break;
+            }
+        }
+
+        if (selectedIndex < _cmbRes.Items.Count)
+        {
+            _cmbRes.SelectedIndex = selectedIndex;
+            _pendingResIndex = selectedIndex;
+            _cmbRes.Invalidate();
+        }
+    }
+
     void BuildSettings()
     {
         var p  = _pgSettings;
-        int lp = 28;                         // left padding
-        int cw = _host.Width - lp - 28;     // content width
+        int lp = Scale(28);                         // left padding
+        int cw = _host.Width - lp - Scale(28);     // content width
 
         // IP address
-        _lblIp = new Label { Text = "IP address :", Font = new Font(FontLoader.Lalezar, 14f), ForeColor = Color.White, Location = new Point(lp, 16), AutoSize = true };
+        _lblIp = new Label { Text = "IP address :", Font = FontLoader.CreateFont(Scale(12f), FontStyle.Bold), ForeColor = Color.White, Location = new Point(lp, Scale(20)), AutoSize = true };
         p.Controls.Add(_lblIp);
 
-        // ● Stream Quality
-        p.Controls.Add(new CircleDotHeader { Text = "Stream Quality", Font = new Font(FontLoader.Lalezar, 26f), ForeColor = Color.White, Location = new Point(lp - 2, 60), Size = new Size(cw, 44) });
+        // Monitor Header
+        p.Controls.Add(new CircleDotHeader { Text = "Monitor", Font = FontLoader.CreateFont(Scale(16f), FontStyle.Bold), ForeColor = Color.White, Location = new Point(lp - Scale(2), Scale(65)), Size = new Size(cw, Scale(36)) });
 
-        _cmbRes = new FlatComboBox(CB, CBdr) { Location = new Point(lp, 114), Size = new Size(cw, 44), Font = new Font(FontLoader.Lalezar, 14f) };
-        _cmbRes.Items.AddRange(new object[]
+        // Monitor Combobox
+        _cmbMon = new FlatComboBox(CB, CBdr) { Location = new Point(lp, Scale(110)), Size = new Size(cw - Scale(60), Scale(44)), Font = FontLoader.CreateFont(Scale(11f)) };
+        _cmbMon.SelectedIndexChanged += (_, _) =>
         {
-            "Auto ( Match Device Display)",
-            "1080p Full HD (1920x1080 @ 60 FPS)",
-            "2.5K Quad HD (2560x1600 @ 60 FPS)",
-            "4K Ultra HD (3840x2160 @ 60 FPS)"
-        });
-        _cmbRes.SelectedIndex = _app.SelectedResIndex;
-        _cmbRes.SelectedIndexChanged += (_, _) => _app.UpdateResolutionSelection(_cmbRes.SelectedIndex);
-        p.Controls.Add(_cmbRes);
+            if (_cmbMon.SelectedIndex >= 0)
+            {
+                var item = (MonitorComboItem)_cmbMon.Items[_cmbMon.SelectedIndex];
+                _pendingMonitorHandle = item.Handle;
+                _pendingMonitorLabel = item.Label;
+            }
+        };
+        p.Controls.Add(_cmbMon);
 
-        // START
-        _btnSS = BigBtn("START", CGreen, lp, 220, cw);
+        // Refresh Button
+        _btnRefresh = new RefreshButton(CBdr) { Location = new Point(lp + cw - Scale(48), Scale(110)), Size = new Size(Scale(44), Scale(44)) };
+        _btnRefresh.Click += (_, _) => PopulateMonitors();
+        p.Controls.Add(_btnRefresh);
+
+        // Stream Quality Header
+        p.Controls.Add(new CircleDotHeader { Text = "Stream Quality", Font = FontLoader.CreateFont(Scale(16f), FontStyle.Bold), ForeColor = Color.White, Location = new Point(lp - Scale(2), Scale(175)), Size = new Size(cw, Scale(36)) });
+
+        // Stream Quality Dropdown
+        _cmbRes = new FlatComboBox(CB, CBdr) { Location = new Point(lp, Scale(220)), Size = new Size(cw, Scale(44)), Font = FontLoader.CreateFont(Scale(11f)) };
+        _cmbRes.SelectedIndexChanged += (_, _) =>
+        {
+            _pendingResIndex = _cmbRes.SelectedIndex;
+        };
+        p.Controls.Add(_cmbRes);
+        UpdateResolutionDropdown();
+
+        // Populate monitors initial list
+        PopulateMonitors();
+
+        // START & APPLY Buttons side by side
+        int btnW = (cw - Scale(16)) / 2;
+        _btnSS = BigBtn("START", CGreen, lp, Scale(295), btnW);
         _btnSS.Click += (_, _) => _app.ToggleStreaming(this);
         p.Controls.Add(_btnSS);
+
+        _btnApply = BigBtn("APPLY", CPurp, lp + btnW + Scale(16), Scale(295), btnW);
+        _btnApply.Click += (_, _) =>
+        {
+            bool wasRunning = _app.IsRunning;
+            bool wasUsb = _app.IsUsbMode;
+            if (wasRunning) _app.StopStreaming();
+
+            // Set settings
+            _app.SetMonitor(_pendingMonitorHandle, _pendingMonitorLabel);
+            _app.SetResolutionIndex(_pendingResIndex);
+
+            if (wasRunning) _app.StartStreaming();
+            if (wasUsb) _app.EnableUsbMode();
+
+            _app.ShowBalloon($"Settings applied. Monitor: {_pendingMonitorLabel}");
+            RefreshStatus();
+        };
+        p.Controls.Add(_btnApply);
     }
 
     Button BigBtn(string text, Color bg, int x, int y, int w)
     {
         var b = new Button
         {
-            Text = text, Location = new Point(x, y), Size = new Size(w, 66),
+            Text = text, Location = new Point(x, y), Size = new Size(w, Scale(62)),
             FlatStyle = FlatStyle.Flat, BackColor = bg, ForeColor = Color.White,
-            Font = new Font(FontLoader.Lalezar, 26f), Cursor = Cursors.Hand
+            Font = FontLoader.CreateFont(Scale(20f), FontStyle.Bold), Cursor = Cursors.Hand
         };
-        b.FlatAppearance.BorderSize = 4;
+        b.FlatAppearance.BorderSize = 3;
         b.FlatAppearance.BorderColor = CBdr;
-        b.FlatAppearance.MouseOverBackColor = bg;
-        b.FlatAppearance.MouseDownBackColor = bg;
+        b.FlatAppearance.MouseOverBackColor = Color.FromArgb(Math.Min(bg.R + 20, 255), Math.Min(bg.G + 20, 255), Math.Min(bg.B + 20, 255));
+        b.FlatAppearance.MouseDownBackColor = Color.FromArgb(Math.Max(bg.R - 20, 0), Math.Max(bg.G - 20, 0), Math.Max(bg.B - 20, 0));
         return b;
     }
 
@@ -206,39 +334,39 @@ public sealed class MainWindow : Form
     void BuildAdvanced()
     {
         var p  = _pgAdvanced;
-        int lp = 22;
+        int lp = Scale(22);
         int cw = _host.Width - lp * 2;
 
-        // Card 1 — USB Mode
-        var c1 = new Panel { Location = new Point(lp, 28), Size = new Size(cw, 130), BackColor = CC };
-        c1.Controls.Add(new Label { Text = "USB Mode (ADB)",   Font = new Font(FontLoader.Lalezar, 21f), ForeColor = Color.White, Location = new Point(20, 16), AutoSize = true });
-        c1.Controls.Add(new Label { Text = "Zero - latency via USB Cable. Requires USB Debugging  on the device.", Font = new Font(FontLoader.Lalezar, 11f), ForeColor = Color.White, Location = new Point(20, 60), Size = new Size(cw - 175, 55) });
-        _btnUsb = AdvBtn("ENABLE", CGreen, cw - 152, 38, 130, 50);
+        // Card 1 — USB Mode (No card border matching Group 10 mockup)
+        var c1 = new Panel { Location = new Point(lp, Scale(20)), Size = new Size(cw, Scale(150)), BackColor = CC };
+        c1.Controls.Add(new Label { Text = "USB Mode (ADB)",   Font = FontLoader.CreateFont(Scale(18f), FontStyle.Bold), ForeColor = Color.White, Location = new Point(Scale(20), Scale(16)), AutoSize = true });
+        c1.Controls.Add(new Label { Text = "Zero - latency via USB Cable. Requires USB Debugging on the device.", Font = FontLoader.CreateFont(Scale(10f)), ForeColor = Color.FromArgb(217, 217, 217), Location = new Point(Scale(20), Scale(60)), Size = new Size(cw - Scale(180), Scale(75)) });
+        _btnUsb = AdvBtn("ENABLE", CGreen, cw - Scale(145), Scale(45), Scale(125), Scale(45));
         _btnUsb.Click += (_, _) => _app.ToggleUsbMode(this);
         c1.Controls.Add(_btnUsb);
         p.Controls.Add(c1);
 
-        // Card 2 — Virtual Display Driver
+        // Card 2 — Virtual Display Driver (No card border matching Group 10 mockup)
         bool driverInstalled = VirtualDisplay.VirtualDisplayManager.IsVirtualDriverInstalled();
-        var c2 = new Panel { Location = new Point(lp, 186), Size = new Size(cw, 130), BackColor = CC };
-        c2.Controls.Add(new Label { Text = "Virtual Display Driver", Font = new Font(FontLoader.Lalezar, 21f), ForeColor = Color.White, Location = new Point(20, 16), AutoSize = true });
+        var c2 = new Panel { Location = new Point(lp, Scale(190)), Size = new Size(cw, Scale(150)), BackColor = CC };
+        c2.Controls.Add(new Label { Text = "Virtual Display Driver", Font = FontLoader.CreateFont(Scale(18f), FontStyle.Bold), ForeColor = Color.White, Location = new Point(Scale(20), Scale(16)), AutoSize = true });
 
         var statusLabel = new Label
         {
             Text = driverInstalled
                 ? "✓  Driver installed. Extends your desktop with a virtual second screen."
                 : "Adds a Virtual Monitor so you can use extended display mode.\nWithout this driver you can only mirror the Primary Display.",
-            Font = new Font(FontLoader.Lalezar, 11f),
-            ForeColor = driverInstalled ? Color.FromArgb(0, 206, 128) : Color.White,
-            Location = new Point(20, 60),
-            Size = new Size(cw - 175, 55)
+            Font = FontLoader.CreateFont(Scale(10f)),
+            ForeColor = driverInstalled ? Color.FromArgb(30, 204, 145) : Color.FromArgb(217, 217, 217),
+            Location = new Point(Scale(20), Scale(60)),
+            Size = new Size(cw - Scale(180), Scale(75))
         };
         c2.Controls.Add(statusLabel);
 
         var vBtn = AdvBtn(
             driverInstalled ? "REINSTALL" : "INSTALL",
             driverInstalled ? CGreen : CPurp,
-            cw - 152, 38, 130, 50);
+            cw - Scale(145), Scale(45), Scale(125), Scale(45));
         vBtn.Click += (_, _) => _app.InstallVirtualDisplay();
         c2.Controls.Add(vBtn);
         p.Controls.Add(c2);
@@ -250,12 +378,12 @@ public sealed class MainWindow : Form
         {
             Text = text, Location = new Point(x, y), Size = new Size(w, h),
             FlatStyle = FlatStyle.Flat, BackColor = bg, ForeColor = Color.White,
-            Font = new Font(FontLoader.Lalezar, 14f), Cursor = Cursors.Hand
+            Font = FontLoader.CreateFont(Scale(11f), FontStyle.Bold), Cursor = Cursors.Hand
         };
         b.FlatAppearance.BorderSize = 3;
         b.FlatAppearance.BorderColor = CBdr;
-        b.FlatAppearance.MouseOverBackColor = bg;
-        b.FlatAppearance.MouseDownBackColor = bg;
+        b.FlatAppearance.MouseOverBackColor = Color.FromArgb(Math.Min(bg.R + 20, 255), Math.Min(bg.G + 20, 255), Math.Min(bg.B + 20, 255));
+        b.FlatAppearance.MouseDownBackColor = Color.FromArgb(Math.Max(bg.R - 20, 0), Math.Max(bg.G - 20, 0), Math.Max(bg.B - 20, 0));
         return b;
     }
 
@@ -264,22 +392,18 @@ public sealed class MainWindow : Form
     void BuildAbout()
     {
         var p  = _pgAbout;
-        int lp = 22;
+        int lp = Scale(22);
         int cw = _host.Width - lp * 2;
 
-        var card = new AboutCard(CBdr) { Location = new Point(lp, 22), Size = new Size(cw, 430), BackColor = CC };
+        var card = new AboutCard(CBdr) { Location = new Point(lp, Scale(20)), Size = new Size(cw, Scale(320)), BackColor = CC };
         card.Controls.Add(new Label
         {
             Text =
-                "FOLD is a lightweight, high-performance utility designed to seamlessly\n" +
-                "expand your digital workspace by transforming any standard Android\n" +
-                "tablet into a fully functional second display.\n\n" +
-                "Engineered for efficiency, FOLD utilizes H.264 hardware-accelerated\n" +
-                "streaming to deliver a crisp, lag-free visual experience.\n\n" +
-                "Built on Sdcb.FFmpeg, Android MediaCodec, and ADB, FOLD bridges\n" +
-                "the gap between mobile hardware and desktop productivity.",
-            Font = new Font(FontLoader.Lalezar, 12f), ForeColor = Color.White,
-            Location = new Point(26, 108), Size = new Size(cw - 52, 300)
+                "FOLD is a lightweight, high-performance utility designed to seamlessly expand your digital workspace by transforming any standard Android tablet into a fully functional second display.\n\n" +
+                "Engineered for efficiency, FOLD utilizes H.264 hardware-accelerated streaming to deliver a crisp, lag-free visual experience. It offers flexible connectivity, allowing users to choose between the wireless convenience of a Wi-Fi connection or the rock-solid, zero-latency stability of a direct USB link.\n\n" +
+                "Built on a robust technical foundation that includes Sdcb.FFmpeg, Android MediaCodec, and ADB, the application provides a smooth and reliable screen extension. Whether you need extra real estate for monitoring live deployments, managing content strategies, or simply keeping your workspace organized, FOLD bridges the gap between mobile hardware and desktop productivity.",
+            Font = FontLoader.CreateFont(Scale(8.0f)), ForeColor = Color.FromArgb(217, 217, 217),
+            Location = new Point(Scale(26), Scale(102)), Size = new Size(cw - Scale(52), Scale(206))
         });
         p.Controls.Add(card);
     }
@@ -299,8 +423,6 @@ public sealed class MainWindow : Form
             if (_btnUsb != null) { _btnUsb.Text = usb ? "DISABLE" : "ENABLE"; _btnUsb.BackColor = usb ? Color.FromArgb(239, 68, 68) : CGreen; }
         });
     }
-
-
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -333,22 +455,22 @@ public sealed class FlatComboBox : Control
         using var bgBr = new SolidBrush(_bg);
         g.FillRectangle(bgBr, 0, 0, Width, Height);
 
-        // Border
+        // Border (3px matching Group 9)
         using var bp = new Pen(_border, 3f);
-        g.DrawRectangle(bp, 1, 1, Width - 3, Height - 3);
+        g.DrawRectangle(bp, 1.5f, 1.5f, Width - 3f, Height - 3f);
 
         // Text
         string txt = SelectedText;
         using var tf = new SolidBrush(Color.White);
         var fmt = new StringFormat { LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
-        g.DrawString(txt, Font, tf, new RectangleF(10, 0, Width - 50, Height), fmt);
+        g.DrawString(txt, Font, tf, new RectangleF(12, 0, Width - 50, Height), fmt);
 
         // Custom chevron arrow ▼
-        int ax = Width - 34;
-        int ay = Height / 2 - 5;
-        using var ap = new Pen(Color.White, 2.5f);
-        g.DrawLine(ap, ax, ay,     ax + 10, ay + 10);
-        g.DrawLine(ap, ax + 10, ay + 10, ax + 20, ay);
+        int ax = Width - 30;
+        int ay = Height / 2 - 4;
+        using var ap = new Pen(Color.White, 2f);
+        g.DrawLine(ap, ax, ay,     ax + 6, ay + 6);
+        g.DrawLine(ap, ax + 6, ay + 6, ax + 12, ay);
     }
 
     protected override void OnMouseClick(MouseEventArgs e)
@@ -360,14 +482,15 @@ public sealed class FlatComboBox : Control
     void OpenDropdown()
     {
         _dropped = true;
-        int itemH = 34;
+        int itemH = Height - 8;
 
         _dropPanel = new Panel
         {
-            BackColor = Color.FromArgb(17, 27, 54),
+            BackColor = Color.FromArgb(22, 32, 56), // Deep Navy 3
             Size      = new Size(Width, Items.Count * itemH),
             BorderStyle = BorderStyle.None
         };
+        _dropPanel.Paint += (s, pe) => { using var pen = new Pen(_border, 3f); pe.Graphics.DrawRectangle(pen, 1.5f, 1.5f, _dropPanel.Width - 3f, _dropPanel.Height - 3f); };
 
         // Position in parent coords
         var loc = Parent!.PointToClient(PointToScreen(new Point(0, Height)));
@@ -381,17 +504,17 @@ public sealed class FlatComboBox : Control
             {
                 Text      = lbl,
                 FlatStyle = FlatStyle.Flat,
-                BackColor = idx == SelectedIndex ? Color.FromArgb(51, 51, 51) : Color.FromArgb(17, 27, 54),
+                BackColor = idx == SelectedIndex ? Color.FromArgb(56, 56, 56) : Color.FromArgb(22, 32, 56),
                 ForeColor = Color.White,
                 Font      = Font,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding   = new Padding(8, 0, 0, 0),
+                Padding   = new Padding(12, 0, 0, 0),
                 Size      = new Size(Width, itemH),
                 Location  = new Point(0, idx * itemH),
                 Cursor    = Cursors.Hand
             };
             btn.FlatAppearance.BorderSize = 0;
-            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(60, 60, 80);
+            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(56, 56, 56);
             btn.Click += (_, _) =>
             {
                 SelectedIndex = idx;
@@ -447,6 +570,7 @@ public sealed class RefreshButton : Control
         _border = border;
         DoubleBuffered = true;
         SetStyle(ControlStyles.Selectable, false);
+        Cursor = Cursors.Hand;
     }
 
     protected override void OnMouseEnter(EventArgs e) { _hover = true;  Invalidate(); base.OnMouseEnter(e); }
@@ -458,19 +582,19 @@ public sealed class RefreshButton : Control
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
 
-        Color bg = _hover ? Color.FromArgb(200, 200, 200) : Color.FromArgb(217, 217, 217);
+        Color bg = _hover ? Color.FromArgb(56, 56, 56) : Color.FromArgb(22, 32, 56);
         using var bgBr = new SolidBrush(bg);
         g.FillRectangle(bgBr, 0, 0, Width, Height);
 
         using var bp = new Pen(_border, 3f);
-        g.DrawRectangle(bp, 1, 1, Width - 3, Height - 3);
+        g.DrawRectangle(bp, 1.5f, 1.5f, Width - 3f, Height - 3f);
 
         // Draw circular arrow using arc + arrowhead
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        int m = 8;
+        int m = 12;
         var rect = new Rectangle(m, m, Width - m * 2, Height - m * 2);
 
-        using var ap = new Pen(Color.Black, 2.8f) { StartCap = LineCap.Round, EndCap = LineCap.ArrowAnchor };
+        using var ap = new Pen(Color.White, 2f) { StartCap = LineCap.Round, EndCap = LineCap.ArrowAnchor };
         g.DrawArc(ap, rect, -220f, 300f);
     }
 }
@@ -489,15 +613,14 @@ public sealed class CircleDotHeader : Control
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
 
-        // Outer ring
-        using var pen = new Pen(Color.White, 3.5f);
-        g.DrawEllipse(pen, 3, 12, 20, 20);
-        // Inner dot
-        g.FillEllipse(Brushes.White, 8, 17, 10, 10);
+        // Draw white circle outline (ring, 3px thick matching Group 9)
+        using var pen = new Pen(Color.White, 3f);
+        g.DrawEllipse(pen, 4, Height / 2 - 8, 16, 16);
 
         using var br = new SolidBrush(ForeColor);
         g.TextRenderingHint = TextRenderingHint.AntiAlias;
-        g.DrawString(Text, Font, br, 32, 0);
+        using var fontLalezar = FontLoader.CreateFont(Font.Size, FontStyle.Bold);
+        g.DrawString(Text, fontLalezar, br, 28, Height / 2 - fontLalezar.Height / 2 - 1);
     }
 }
 
@@ -517,24 +640,41 @@ public sealed class AboutCard : Panel
         g.SmoothingMode     = SmoothingMode.AntiAlias;
         g.TextRenderingHint = TextRenderingHint.AntiAlias;
 
-        using var pen = new Pen(_bc, 4f);
-        g.DrawRectangle(pen, 2, 2, Width - 5, Height - 5);
+        // Draw 12px thick light gray border matching Group 11 mockup
+        using var pen = new Pen(Color.FromArgb(217, 217, 217), 12f);
+        g.DrawRectangle(pen, 6f, 6f, Width - 12f, Height - 12f);
 
-        using var fBig   = new Font(FontLoader.Lalezar, 30f);
-        using var fSmall = new Font(FontLoader.Lalezar, 14f);
+        using var fBig   = FontLoader.CreateFont(26f, FontStyle.Bold);
         using var brush  = new SolidBrush(Color.White);
 
         string p1 = "F  O  L  D";
         string p2 = "  by @idham.dev";
-        var s1 = g.MeasureString(p1, fBig);
-        var s2 = g.MeasureString(p2, fSmall);
+
+        using var fSmall = FontLoader.CreateFont(10f);
+
+        var sf = StringFormat.GenericTypographic;
+        var s1 = g.MeasureString(p1, fBig, PointF.Empty, sf);
+        var s2 = g.MeasureString(p2, fSmall, PointF.Empty, sf);
+
         float sx = (Width - s1.Width - s2.Width) / 2f;
+        float y1 = 32f;
 
-        g.DrawString(p1, fBig,   brush, sx, 18f);
-        g.DrawString(p2, fSmall, brush, sx + s1.Width, 34f);
+        // Mathematically align the baselines using font metrics
+        float em1 = fBig.FontFamily.GetEmHeight(fBig.Style);
+        float asc1 = fBig.FontFamily.GetCellAscent(fBig.Style);
+        float ascent1_px = (fBig.Size * asc1 / em1) * (g.DpiY / 72f);
 
-        using var lp = new Pen(Color.White, 2.5f);
-        g.DrawLine(lp, 26, 82, Width - 26, 82);
+        float em2 = fSmall.FontFamily.GetEmHeight(fSmall.Style);
+        float asc2 = fSmall.FontFamily.GetCellAscent(fSmall.Style);
+        float ascent2_px = (fSmall.Size * asc2 / em2) * (g.DpiY / 72f);
+
+        float y2 = y1 + (ascent1_px - ascent2_px);
+
+        g.DrawString(p1, fBig,   brush, sx, y1, sf);
+        g.DrawString(p2, fSmall, brush, sx + s1.Width, y2, sf);
+
+        using var lp = new Pen(Color.FromArgb(217, 217, 217), 1f);
+        g.DrawLine(lp, 26, 88, Width - 26, 88);
     }
 }
 
@@ -552,23 +692,49 @@ public static class FontLoader
         get { if (_fam == null) Load(); return _fam ?? FontFamily.GenericSansSerif; }
     }
 
+    public static Font CreateFont(float size, FontStyle style = FontStyle.Regular)
+    {
+        try
+        {
+            var fam = Lalezar;
+            if (fam != null && fam.IsStyleAvailable(style))
+                return new Font(fam, size, style);
+            if (fam != null && fam.IsStyleAvailable(FontStyle.Regular))
+                return new Font(fam, size, FontStyle.Regular);
+        }
+        catch { }
+        return new Font("Segoe UI", size, style);
+    }
+
     static void Load()
     {
         try
         {
             _pfc = new PrivateFontCollection();
             var asm = Assembly.GetExecutingAssembly();
-            using var s = asm.GetManifestResourceStream("FOLD.Resources.Lalezar-Regular.ttf");
-            if (s == null) return;
-            int len = (int)s.Length;
-            byte[] buf = new byte[len];
-            int pos = 0;
-            while (pos < len) { int r = s.Read(buf, pos, len - pos); if (r <= 0) break; pos += r; }
-            IntPtr ptr = Marshal.AllocCoTaskMem(len);
-            Marshal.Copy(buf, 0, ptr, len);
-            _pfc.AddMemoryFont(ptr, len);
-            Marshal.FreeCoTaskMem(ptr);
-            if (_pfc.Families.Length > 0) _fam = _pfc.Families[0];
+            
+            string tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FOLDHost");
+            System.IO.Directory.CreateDirectory(System.IO.Path.Combine(tempDir, "fonts"));
+            string tempFontPath = System.IO.Path.Combine(tempDir, "fonts", "Lalezar-Regular.ttf");
+
+            if (!System.IO.File.Exists(tempFontPath))
+            {
+                using var s = asm.GetManifestResourceStream("FOLD.Resources.Lalezar-Regular.ttf");
+                if (s != null)
+                {
+                    using var fs = new System.IO.FileStream(tempFontPath, System.IO.FileMode.Create, System.IO.FileAccess.Write);
+                    s.CopyTo(fs);
+                }
+            }
+
+            if (System.IO.File.Exists(tempFontPath))
+            {
+                _pfc.AddFontFile(tempFontPath);
+                if (_pfc.Families.Length > 0)
+                {
+                    _fam = _pfc.Families[0];
+                }
+            }
         }
         catch { }
     }

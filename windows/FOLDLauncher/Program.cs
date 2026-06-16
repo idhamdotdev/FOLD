@@ -48,7 +48,7 @@ public static class Program
     {
         try
         {
-            var path = Assembly.GetExecutingAssembly().Location;
+            string path = System.Environment.ProcessPath ?? "";
             if (string.IsNullOrEmpty(path) || !File.Exists(path))
             {
                 // Fallback if location is empty (AOT/SingleFile)

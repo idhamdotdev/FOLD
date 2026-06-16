@@ -149,10 +149,11 @@ public static class VirtualDisplayInstaller
             {
                 try
                 {
+                    string devId = VirtualDisplayManager.GetVirtualDisplayDeviceInstanceId();
                     using var pEnable = Process.Start(new ProcessStartInfo
                     {
                         FileName    = "pnputil.exe",
-                        Arguments   = "/enable-device \"ROOT\\DISPLAY\\0000\"",
+                        Arguments   = $"/enable-device \"{devId}\"",
                         UseShellExecute = true,
                         Verb        = "runas",
                         WindowStyle = ProcessWindowStyle.Hidden

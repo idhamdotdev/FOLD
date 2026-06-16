@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using SharpDX;
 using SharpDX.DXGI;
 using SharpDX.Direct3D;
@@ -43,9 +44,13 @@ public sealed class WgcCapture : IScreenCapture, IDisposable
     private readonly GraphicsCaptureItem _item;
     private readonly Direct3D11CaptureFramePool _framePool;
     private readonly GraphicsCaptureSession _session;
-    private Bitmap? _lastFrame;
+    private Direct3D11CaptureFrame? _latestFrame;
+    private readonly ManualResetEventSlim _frameEvent = new ManualResetEventSlim(false);
+    private Bitmap? _lastBitmap;
     private readonly object _lock = new object();
     private SharpDX.Direct3D11.Device _d3dDevice;
+    private readonly Texture2D[] _stagingTextures;
+    private int _frameIndex = 0;
 
     public int ScreenWidth { get; }
     public int ScreenHeight { get; }
@@ -61,6 +66,26 @@ public sealed class WgcCapture : IScreenCapture, IDisposable
         ScreenWidth = size.Width;
         ScreenHeight = size.Height;
         _d3dDevice = new SharpDX.Direct3D11.Device(DriverType.Hardware, DeviceCreationFlags.BgraSupport);
+        
+        Texture2DDescription description = new Texture2DDescription
+        {
+            Width = ScreenWidth,
+            Height = ScreenHeight,
+            MipLevels = 1,
+            ArraySize = 1,
+            Format = Format.B8G8R8A8_UNorm,
+            SampleDescription = new SampleDescription(1, 0),
+            Usage = ResourceUsage.Staging,
+            BindFlags = BindFlags.None,
+            CpuAccessFlags = CpuAccessFlags.Read,
+            OptionFlags = ResourceOptionFlags.None
+        };
+        _stagingTextures = new Texture2D[3];
+        for (int i = 0; i < 3; i++)
+        {
+            _stagingTextures[i] = new Texture2D(_d3dDevice, description);
+        }
+
         IDirect3DDevice device = CreateWinRTDevice(_d3dDevice);
         _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(device, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, size);
         _framePool.FrameArrived += OnFrameArrived;
@@ -71,34 +96,151 @@ public sealed class WgcCapture : IScreenCapture, IDisposable
 
     private void OnFrameArrived(Direct3D11CaptureFramePool sender, object args)
     {
-        using Direct3D11CaptureFrame direct3D11CaptureFrame = sender.TryGetNextFrame();
+        Direct3D11CaptureFrame direct3D11CaptureFrame = sender.TryGetNextFrame();
         if (direct3D11CaptureFrame == null)
         {
             return;
         }
-        Bitmap lastFrame = SurfaceToBitmap(direct3D11CaptureFrame.Surface, ScreenWidth, ScreenHeight);
         lock (_lock)
         {
-            _lastFrame?.Dispose();
-            _lastFrame = lastFrame;
+            _latestFrame?.Dispose();
+            _latestFrame = direct3D11CaptureFrame;
         }
+        _frameEvent.Set();
     }
 
     public Bitmap CaptureFrame()
     {
-        int num = 0;
-        while (_lastFrame == null && num < 2000)
-        {
-            Thread.Sleep(5);
-            num += 5;
-        }
+        Direct3D11CaptureFrame? frameToProcess = null;
         lock (_lock)
         {
-            if (_lastFrame == null)
+            frameToProcess = _latestFrame;
+            _latestFrame = null;
+        }
+
+        if (frameToProcess == null)
+        {
+            _frameEvent.Reset();
+            // Wait up to 100ms for a new frame, keeping response fast
+            if (_frameEvent.Wait(100))
             {
-                return new Bitmap(ScreenWidth, ScreenHeight, PixelFormat.Format32bppArgb);
+                lock (_lock)
+                {
+                    frameToProcess = _latestFrame;
+                    _latestFrame = null;
+                }
             }
-            return (Bitmap)_lastFrame.Clone();
+        }
+
+        if (frameToProcess == null)
+        {
+            lock (_lock)
+            {
+                if (_lastBitmap != null)
+                {
+                    return (Bitmap)_lastBitmap.Clone();
+                }
+            }
+            // Absolute fallback
+            return new Bitmap(ScreenWidth, ScreenHeight, PixelFormat.Format32bppArgb);
+        }
+
+        using (frameToProcess)
+        {
+            Bitmap bmp = SurfaceToBitmap(frameToProcess.Surface, ScreenWidth, ScreenHeight);
+            lock (_lock)
+            {
+                _lastBitmap?.Dispose();
+                _lastBitmap = (Bitmap)bmp.Clone();
+            }
+            return bmp;
+        }
+    }
+
+    public bool CaptureToBuffer(IntPtr dstBuffer, out int rowPitch, int timeoutMs)
+    {
+        Direct3D11CaptureFrame? frameToProcess = null;
+        lock (_lock)
+        {
+            frameToProcess = _latestFrame;
+            _latestFrame = null;
+        }
+
+        if (frameToProcess == null)
+        {
+            _frameEvent.Reset();
+            // Wait up to timeoutMs for a new frame
+            if (_frameEvent.Wait(timeoutMs))
+            {
+                lock (_lock)
+                {
+                    frameToProcess = _latestFrame;
+                    _latestFrame = null;
+                }
+            }
+        }
+
+        if (frameToProcess == null)
+        {
+            rowPitch = 0;
+            return false;
+        }
+
+        using (frameToProcess)
+        {
+            IDirect3DDxgiInterfaceAccess direct3DDxgiInterfaceAccess = (IDirect3DDxgiInterfaceAccess)frameToProcess.Surface;
+            Guid iid = new Guid("6f15aaf2-d208-4e89-9ab4-489535d34f9c");
+            IntPtr nativePtr = direct3DDxgiInterfaceAccess.GetInterface(ref iid);
+            using Texture2D source = new Texture2D(nativePtr);
+
+            // Copy to current frame's staging texture
+            int writeIndex = _frameIndex % 3;
+            _d3dDevice.ImmediateContext.CopyResource(source, _stagingTextures[writeIndex]);
+
+            // Read from the staging texture that was copied 2 frames ago (if we have completed at least 2 frames)
+            int readIndex = (_frameIndex - 2) % 3;
+            if (readIndex < 0) readIndex += 3;
+
+            int mapIndex = (_frameIndex >= 2) ? readIndex : writeIndex;
+
+            _frameIndex = (_frameIndex + 1) % 3000;
+
+            DataBox dataBox = _d3dDevice.ImmediateContext.MapSubresource(_stagingTextures[mapIndex], 0, MapMode.Read, SharpDX.Direct3D11.MapFlags.None);
+            try
+            {
+                rowPitch = dataBox.RowPitch;
+                int height = ScreenHeight;
+                int pitch = rowPitch;
+                unsafe
+                {
+                    long srcAddr = (long)dataBox.DataPointer;
+                    long dstAddr = (long)dstBuffer;
+                    int numCopyThreads = 4;
+                    int linesPerThread = height / numCopyThreads;
+
+                    Parallel.For(0, numCopyThreads, i =>
+                    {
+                        int startY = i * linesPerThread;
+                        int endY = (i == numCopyThreads - 1) ? height : (startY + linesPerThread);
+                        int copySize = (endY - startY) * pitch;
+                        
+                        unsafe
+                        {
+                            System.Buffer.MemoryCopy(
+                                (void*)(srcAddr + startY * pitch),
+                                (void*)(dstAddr + startY * pitch),
+                                copySize,
+                                copySize
+                            );
+                        }
+                    });
+                }
+                return true;
+            }
+            finally
+            {
+                _d3dDevice.ImmediateContext.UnmapSubresource(_stagingTextures[mapIndex], 0);
+            }
         }
     }
 
@@ -126,8 +268,29 @@ public sealed class WgcCapture : IScreenCapture, IDisposable
         DataBox dataBox = _d3dDevice.ImmediateContext.MapSubresource(texture2D, 0, MapMode.Read, SharpDX.Direct3D11.MapFlags.None);
         try
         {
-            Bitmap bitmap = new Bitmap(w, h, dataBox.RowPitch, PixelFormat.Format32bppArgb, dataBox.DataPointer);
-            return (Bitmap)bitmap.Clone();
+            // Copy pixel data into a managed Bitmap directly (one copy instead of two)
+            Bitmap bitmap = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+            BitmapData bmpData = bitmap.LockBits(new System.Drawing.Rectangle(0, 0, w, h), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+            try
+            {
+                int srcStride = dataBox.RowPitch;
+                int dstStride = bmpData.Stride;
+                int copyBytes = Math.Min(srcStride, dstStride);
+                unsafe
+                {
+                    byte* src = (byte*)dataBox.DataPointer;
+                    byte* dst = (byte*)bmpData.Scan0;
+                    for (int y = 0; y < h; y++)
+                    {
+                        System.Buffer.MemoryCopy(src + y * srcStride, dst + y * dstStride, dstStride, copyBytes);
+                    }
+                }
+            }
+            finally
+            {
+                bitmap.UnlockBits(bmpData);
+            }
+            return bitmap;
         }
         finally
         {
@@ -156,10 +319,16 @@ public sealed class WgcCapture : IScreenCapture, IDisposable
     {
         _session.Dispose();
         _framePool.Dispose();
+        foreach (var tex in _stagingTextures)
+        {
+            tex?.Dispose();
+        }
         _d3dDevice.Dispose();
+        _frameEvent.Dispose();
         lock (_lock)
         {
-            _lastFrame?.Dispose();
+            _latestFrame?.Dispose();
+            _lastBitmap?.Dispose();
         }
     }
 

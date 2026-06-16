@@ -104,12 +104,12 @@ powershell -ExecutionPolicy Bypass -File tools/MakeRelease.ps1
 ```
 
 ### Build Outputs (in `/release`):
-*   `FOLD.exe` (~71.6 MB) - Completely self-contained, compressed single-file Windows executable (no .NET installation needed).
-*   `FOLD_portable.zip` (~35.4 MB) - Framework-dependent portable distribution folder.
+*   `FOLD.exe` (~137.6 MB) - Completely self-contained, single-file Windows executable (no .NET installation needed).
+*   `FOLD_portable.zip` (~125.8 MB) - Zipped portable Windows folder.
 *   `FOLD.apk` (~2.1 MB) - Optimized Android Release client (minified and resource-shrunk using R8).
 
 ---
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE.md](LICENSE.md) file for details.

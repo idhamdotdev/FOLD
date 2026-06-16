@@ -30,6 +30,17 @@ if (Test-Path $release) {
 }
 Write-Host "  Output: $release"
 
+# Copy Adb DLLs from Sticam project tools folder to FOLD resources
+$sticamTools = Join-Path (Split-Path $root -Parent) "Sticam\windows\SticamHost\tools"
+$foldResources = Join-Path $root "windows\FOLD\Resources"
+if (Test-Path (Join-Path $sticamTools "AdbWinApi.dll")) {
+    Copy-Item (Join-Path $sticamTools "AdbWinApi.dll") $foldResources -Force
+    Copy-Item (Join-Path $sticamTools "AdbWinUsbApi.dll") $foldResources -Force
+    Ok "Copied AdbWinApi.dll and AdbWinUsbApi.dll to FOLD resources from Sticam."
+} else {
+    Warn "Could not find AdbWinApi.dll in Sticam tools directory. Make sure you place them in FOLD\windows\FOLD\Resources manually!"
+}
+
 # -------------------------------------------------------------------------
 # 1. Portable Folder & ZIP (framework-dependent, requires .NET 8)
 #    This forms the core of both the portable ZIP and the standalone launcher.
@@ -42,7 +53,7 @@ if (Test-Path $portableFolder) {
 New-Item $portableFolder -ItemType Directory -Force | Out-Null
 
 dotnet publish $csproj -c Release -r win-x64 `
-    "-p:SelfContained=false" `
+    "-p:SelfContained=true" `
     "-p:PublishSingleFile=false" `
     -o $portableFolder | Out-Null
 

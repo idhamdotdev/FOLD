@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Net;
 using System.Net.Sockets;
@@ -28,6 +29,7 @@ public sealed class TrayApp : IDisposable
     private int _forceHeight = 0;
     private int _forceFps    = 60;
     private int _selectedResIndex = 0;
+    public readonly List<ResolutionOption> ResolutionOptions = new();
 
     // The main window — created once, shown/hidden.
     private readonly MainWindow _window;
@@ -47,7 +49,10 @@ public sealed class TrayApp : IDisposable
 
     public TrayApp()
     {
-        _h264Server    = new H264Server(StreamPort, targetFps: 60, bitrateMbps: 12) { ServerApp = this };
+        ResolutionOptions.Add(new ResolutionOption("Auto (Match Device Display)", 0, 0, 60));
+        ResolutionOptions.Add(new ResolutionOption("1080p Full HD (1920x1080 @ 60 FPS)", 1920, 1080, 60));
+
+        _h264Server    = new H264Server(StreamPort, targetFps: 60, bitrateMbps: 24) { ServerApp = this };
         _touchReceiver = new TouchReceiver(TouchPort) { Server = _h264Server };
         _adbForwarder  = new AdbForwarder(StreamPort, TouchPort);
 
@@ -159,9 +164,7 @@ public sealed class TrayApp : IDisposable
         }
         catch (Exception ex)
         {
-            _running = false;
-            UpdateTray();
-            if (_window != null) _window.RefreshStatus();
+            StopStreaming();
             _trayIcon.ShowBalloonTip(4000, "FOLD by @idham.dev — Start Failed",
                 "Run as Administrator or check if ports are in use.\n" + ex.Message,
                 System.Windows.Forms.ToolTipIcon.Warning);
@@ -285,10 +288,11 @@ public sealed class TrayApp : IDisposable
             // Last resort: try enabling the device (this may trigger UAC)
             try
             {
+                string devId = VirtualDisplayManager.GetVirtualDisplayDeviceInstanceId();
                 using var pEnable = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = "pnputil.exe",
-                    Arguments = "/enable-device \"ROOT\\DISPLAY\\0000\"",
+                    Arguments = $"/enable-device \"{devId}\"",
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
@@ -530,32 +534,74 @@ public sealed class TrayApp : IDisposable
         return Icon.FromHandle(bmp.GetHicon());
     }
 
+    public void SetMonitor(IntPtr handle, string label)
+    {
+        _selectedMonitor = handle;
+        _selectedMonitorLabel = label;
+        FOLD.Input.TouchInjector.SelectedMonitorHandle = handle;
+    }
+
+    public void SetResolutionIndex(int index)
+    {
+        lock (ResolutionOptions)
+        {
+            if (index >= 0 && index < ResolutionOptions.Count)
+            {
+                _selectedResIndex = index;
+                var opt = ResolutionOptions[index];
+                _forceWidth = opt.Width;
+                _forceHeight = opt.Height;
+                _forceFps = opt.Fps;
+            }
+        }
+    }
+
+    public void RegisterDeviceResolution(int width, int height, int fps)
+    {
+        if (width <= 0 || height <= 0) return;
+
+        bool exists = false;
+        lock (ResolutionOptions)
+        {
+            foreach (var opt in ResolutionOptions)
+            {
+                if (opt.Width == width && opt.Height == height)
+                {
+                    exists = true;
+                    break;
+                }
+            }
+
+            if (!exists)
+            {
+                string label;
+                if (width == 2560 && height == 1600)
+                    label = "2.5K Quad HD (2560x1600 @ 60 FPS)";
+                else if (width == 3840 && height == 2160)
+                    label = "4K Ultra HD (3840x2160 @ 60 FPS)";
+                else
+                    label = $"Device Display ({width}x{height} @ {fps} FPS)";
+
+                ResolutionOptions.Add(new ResolutionOption(label, width, height, fps));
+
+                if (_window != null && !_window.IsDisposed)
+                {
+                    try
+                    {
+                        _window.BeginInvoke(new Action(() =>
+                        {
+                            _window.UpdateResolutionDropdown();
+                        }));
+                    }
+                    catch { }
+                }
+            }
+        }
+    }
+
     public void UpdateResolutionSelection(int index)
     {
-        _selectedResIndex = index;
-        switch (index)
-        {
-            case 1: // 1080p
-                _forceWidth  = 1920;
-                _forceHeight = 1080;
-                _forceFps    = 60;
-                break;
-            case 2: // 2.5K
-                _forceWidth  = 2560;
-                _forceHeight = 1600;
-                _forceFps    = 60;
-                break;
-            case 3: // 4K
-                _forceWidth  = 3840;
-                _forceHeight = 2160;
-                _forceFps    = 60;
-                break;
-            default: // Auto
-                _forceWidth  = 0;
-                _forceHeight = 0;
-                _forceFps    = 60;
-                break;
-        }
+        SetResolutionIndex(index);
 
         // If streaming is running, let's restart the stream to apply the new resolution!
         if (_running)
@@ -577,4 +623,22 @@ public sealed class TrayApp : IDisposable
         _capture?.Dispose();
         _window.Dispose();
     }
+}
+
+public class ResolutionOption
+{
+    public string Label { get; }
+    public int Width { get; }
+    public int Height { get; }
+    public int Fps { get; }
+
+    public ResolutionOption(string label, int width, int height, int fps)
+    {
+        Label = label;
+        Width = width;
+        Height = height;
+        Fps = fps;
+    }
+
+    public override string ToString() => Label;
 }

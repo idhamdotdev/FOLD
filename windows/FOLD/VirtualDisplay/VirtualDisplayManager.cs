@@ -121,6 +121,29 @@ public static class VirtualDisplayManager
         return false;
     }
 
+    public static string GetVirtualDisplayDeviceInstanceId()
+    {
+        try
+        {
+            var dev = new NativeMethods.DISPLAY_DEVICE { cb = Marshal.SizeOf<NativeMethods.DISPLAY_DEVICE>() };
+            uint i = 0;
+            while (NativeMethods.EnumDisplayDevices(null, i++, ref dev, 0))
+            {
+                if (dev.DeviceID != null && (
+                    dev.DeviceID.Contains("MttVDD", StringComparison.OrdinalIgnoreCase) || 
+                    dev.DeviceID.Contains("MTT1337", StringComparison.OrdinalIgnoreCase) ||
+                    dev.DeviceID.Contains("ROOT\\DISPLAY", StringComparison.OrdinalIgnoreCase) ||
+                    dev.DeviceID.Contains("LCI\\IDDCX", StringComparison.OrdinalIgnoreCase) ||
+                    dev.DeviceString.Contains("Virtual Display Driver", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return dev.DeviceID;
+                }
+            }
+        }
+        catch { }
+        return "ROOT\\DISPLAY\\0000"; // Fallback
+    }
+
     public static IntPtr GetVirtualDisplayMonitorHandle()
     {
         IntPtr foundHandle = IntPtr.Zero;
@@ -198,12 +221,31 @@ public static class VirtualDisplayManager
 
             if (found)
             {
-                bestDevMode.dmFields = NativeMethods.DM_PELSWIDTH | NativeMethods.DM_PELSHEIGHT | NativeMethods.DM_DISPLAYFREQUENCY;
+                int currentX = info.rcMonitor.left;
+                int targetX = currentX;
+                int targetY = 0; // Force vertical alignment to Y=0 to keep monitors touching
+
+                if (currentX < 0)
+                {
+                    targetX = -width;
+                }
+                else if (currentX > 0)
+                {
+                    var primary = System.Windows.Forms.Screen.PrimaryScreen;
+                    if (primary != null)
+                    {
+                        targetX = primary.Bounds.Width;
+                    }
+                }
+
+                bestDevMode.dmFields = NativeMethods.DM_PELSWIDTH | NativeMethods.DM_PELSHEIGHT | NativeMethods.DM_DISPLAYFREQUENCY | NativeMethods.DM_POSITION;
                 bestDevMode.dmPelsWidth = (uint)width;
                 bestDevMode.dmPelsHeight = (uint)height;
                 bestDevMode.dmDisplayFrequency = (uint)refreshRate;
+                bestDevMode.dmPositionX = targetX;
+                bestDevMode.dmPositionY = targetY;
 
-                int result = NativeMethods.ChangeDisplaySettingsEx(deviceName, ref bestDevMode, IntPtr.Zero, NativeMethods.CDS_UPDATEREGISTRY, IntPtr.Zero);
+                int result = NativeMethods.ChangeDisplaySettingsEx(deviceName, ref bestDevMode, IntPtr.Zero, NativeMethods.CDS_UPDATEREGISTRY | NativeMethods.CDS_RESET, IntPtr.Zero);
                 return result == NativeMethods.DISP_CHANGE_SUCCESSFUL;
             }
         }
@@ -333,8 +375,10 @@ public static class VirtualDisplayManager
         public const int DM_PELSWIDTH = 0x00080000;
         public const int DM_PELSHEIGHT = 0x00100000;
         public const int DM_DISPLAYFREQUENCY = 0x00400000;
+        public const int DM_POSITION = 0x00000020;
 
         public const int CDS_UPDATEREGISTRY = 0x01;
+        public const int CDS_RESET = 0x40000000;
         public const int DISP_CHANGE_SUCCESSFUL = 0;
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]

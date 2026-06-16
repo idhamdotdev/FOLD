@@ -25,6 +25,8 @@ public sealed class H264Server : IDisposable
     private TcpListener? _listener;
     private IScreenCapture? _capture;
     private CancellationTokenSource? _cts;
+    private TcpClient? _activeClient;
+    private readonly object _clientLock = new object();
 
     private static readonly string LogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "h264_server.log");
 
@@ -40,6 +42,11 @@ public sealed class H264Server : IDisposable
         _capture = capture;
         _cts = new CancellationTokenSource();
         _listener = new TcpListener(IPAddress.Any, Port);
+        try
+        {
+            _listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+        }
+        catch { }
         _listener.Start();
         Task.Run(() => AcceptLoop(_cts.Token));
         Log($"H264Server listening on port {Port}");
@@ -70,8 +77,17 @@ public sealed class H264Server : IDisposable
             {
                 TcpClient client = await _listener.AcceptTcpClientAsync(ct);
                 client.NoDelay = true;
-                client.SendBufferSize = 262144;
-                client.SendTimeout = 500;
+                client.SendBufferSize = 1048576;
+                client.SendTimeout = 1000;
+                lock (_clientLock)
+                {
+                    if (_activeClient != null)
+                    {
+                        Log("Disconnecting existing client to accept new connection...");
+                        try { _activeClient.Close(); } catch { }
+                    }
+                    _activeClient = client;
+                }
                 Log("Client connected");
                 Task.Run(delegate
                 {
@@ -95,20 +111,22 @@ public sealed class H264Server : IDisposable
         using (client)
         {
             NetworkStream stream = client.GetStream();
-            int currentFps = TargetFps;
-            int currentBitrate = BitrateMbps;
-
-            TimeSpan timeSpan = TimeSpan.FromMilliseconds(1000.0 / (double)currentFps);
             int screenWidth = _capture.ScreenWidth;
             int screenHeight = _capture.ScreenHeight;
-            int num = screenWidth;
-            int num2 = screenHeight;
-            if (screenWidth > 1280 || screenHeight > 720)
-            {
-                double num3 = Math.Min(1280.0 / (double)screenWidth, 720.0 / (double)screenHeight);
-                num = (int)((double)screenWidth * num3) & -2;
-                num2 = (int)((double)screenHeight * num3) & -2;
-            }
+            int num = screenWidth & -2;
+            int num2 = screenHeight & -2;
+
+            // Compute bitrate and fps from the actual capture resolution
+            int currentFps = TargetFps > 0 ? TargetFps : 60;
+            int currentBitrate;
+            if (num >= 3800) currentBitrate = 45;
+            else if (num >= 2500) currentBitrate = 24;
+            else if (num >= 1900) currentBitrate = 16;
+            else currentBitrate = 12;
+            // Allow TouchReceiver override if it already set a higher value
+            if (BitrateMbps > currentBitrate) currentBitrate = BitrateMbps;
+
+            TimeSpan timeSpan = TimeSpan.FromMilliseconds(1000.0 / (double)currentFps);
             Log($"Encoding {screenWidth}x{screenHeight} -> {num}x{num2} @ {currentFps} fps @ {currentBitrate} Mbps");
             Codec? codec = null;
             string text = "libx264";
@@ -133,6 +151,18 @@ public sealed class H264Server : IDisposable
                 valueOrDefault = Codec.FindEncoderById(AVCodecID.H264);
                 codec = valueOrDefault;
             }
+            try
+            {
+                Log("Supported formats for " + text + ":");
+                foreach (var fmt in codec.Value.PixelFormats)
+                {
+                    Log("  - " + fmt.ToString());
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("Could not print formats: " + ex.Message);
+            }
             using CodecContext codecContext = new CodecContext(codec);
             codecContext.Width = num;
             codecContext.Height = num2;
@@ -151,7 +181,7 @@ public sealed class H264Server : IDisposable
             codecContext.GopSize = currentFps;
             codecContext.MaxBFrames = 0;
             codecContext.Profile = 66;
-            codecContext.Level = 40;
+            codecContext.Level = 51;
             using MediaDictionary mediaDictionary = new MediaDictionary();
             if (text == "h264_nvenc")
             {
@@ -170,81 +200,150 @@ public sealed class H264Server : IDisposable
                 mediaDictionary["vbv-bufsize"] = $"{currentBitrate}000";
             }
             codecContext.Open(codec, mediaDictionary);
-            using PixelConverter pixelConverter = new PixelConverter(screenWidth, screenHeight, AVPixelFormat.Bgra, num, num2, AVPixelFormat.Yuv420p);
-            using Frame frame = new Frame();
-            frame.Width = num;
-            frame.Height = num2;
-            frame.Format = 0;
-            frame.EnsureBuffer();
-            bool flag = false;
-            long num4 = 0L;
+            // Initialize CPU buffer for capturing raw pixels
+            IntPtr cpuBuffer = System.Runtime.InteropServices.Marshal.AllocHGlobal(screenWidth * screenHeight * 4 + 65536);
+            
+            // Initialize parallel PixelConverters
+            int numThreads = (screenHeight % 4 == 0 && (screenHeight / 4) % 2 == 0) ? 4 : 1;
+            PixelConverter[] converters = new PixelConverter[numThreads];
+            int sliceHeight = screenHeight / numThreads;
+            for (int i = 0; i < numThreads; i++)
+            {
+                converters[i] = new PixelConverter(screenWidth, sliceHeight, AVPixelFormat.Bgra, num, sliceHeight, AVPixelFormat.Yuv420p);
+            }
+
             try
             {
-                while (!ct.IsCancellationRequested)
+                using Frame frame = new Frame();
+                frame.Width = num;
+                frame.Height = num2;
+                frame.Format = 0;
+                frame.EnsureBuffer();
+                bool flag = false;
+                long num4 = 0L;
+                try
                 {
-                    DateTime utcNow = DateTime.UtcNow;
-                    frame.MakeWritable();
-                    using Bitmap bitmap = _capture.CaptureFrame();
-                    if (bitmap.Width != screenWidth || bitmap.Height != screenHeight)
+                    while (!ct.IsCancellationRequested)
                     {
-                        num4++;
-                        continue;
-                    }
-                    BitmapData bitmapData = bitmap.LockBits(new Rectangle(0, 0, screenWidth, screenHeight), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
-                    try
-                    {
-                        pixelConverter.Convert(new byte_ptrArray8 { [0] = bitmapData.Scan0 }, new int_array8 { [0] = bitmapData.Stride }, screenHeight, frame.Data, frame.Linesize);
-                    }
-                    finally
-                    {
-                        bitmap.UnlockBits(bitmapData);
-                    }
-                    frame.Pts = num4++;
-                    codecContext.SendFrame(frame);
-                    using Packet packet = new Packet();
-                    while (true)
-                    {
-                        CodecResult codecResult = codecContext.ReceivePacket(packet);
-                        if (codecResult == CodecResult.Again || codecResult == CodecResult.EOF)
+                        DateTime utcNow = DateTime.UtcNow;
+                        frame.MakeWritable();
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        
+                        int targetFrameTimeMs = 1000 / currentFps;
+                        bool hasNewFrame = _capture.CaptureToBuffer(cpuBuffer, out int rowPitch, targetFrameTimeMs);
+                        long msCapture = sw.ElapsedMilliseconds;
+
+                        if (!hasNewFrame && num4 == 0)
                         {
-                            break;
+                            continue;
                         }
-                        byte[] array2 = packet.Data.ToArray();
-                        if (!flag)
+
+                        long msConvert = 0;
+                        if (hasNewFrame)
                         {
-                            var (array3, array4) = ExtractSpsAndPps(array2);
-                            if (array3 == null || array4 == null)
+                            sw.Restart();
+                            // Parallel color space conversion
+                            Parallel.For(0, numThreads, i =>
                             {
-                                Log($"Waiting for IDR frame with SPS/PPS (pkt {num4})...");
-                                packet.Unref();
-                                continue;
-                            }
-                            SendTypedPacket(stream, 1, array3);
-                            SendTypedPacket(stream, 2, array4);
-                            stream.Flush();
-                            flag = true;
-                            Log($"Config sent - SPS={array3.Length}B  PPS={array4.Length}B");
-                            array2 = StripConfigNals(array2);
+                                int startY = i * sliceHeight;
+                                IntPtr srcSlicePtr = new IntPtr(cpuBuffer.ToInt64() + startY * rowPitch);
+                                IntPtr dstY = new IntPtr(frame.Data[0].ToInt64() + startY * frame.Linesize[0]);
+                                IntPtr dstU = new IntPtr(frame.Data[1].ToInt64() + (startY / 2) * frame.Linesize[1]);
+                                IntPtr dstV = new IntPtr(frame.Data[2].ToInt64() + (startY / 2) * frame.Linesize[2]);
+                                
+                                converters[i].Convert(
+                                    new byte_ptrArray8 { [0] = srcSlicePtr },
+                                    new int_array8 { [0] = rowPitch },
+                                    sliceHeight,
+                                    new byte_ptrArray8 { [0] = dstY, [1] = dstU, [2] = dstV },
+                                    frame.Linesize
+                                );
+                            });
+                            msConvert = sw.ElapsedMilliseconds;
                         }
-                        Log($"Frame {num4}: {array2.Length}B");
-                        SendTypedPacket(stream, 0, array2);
-                        stream.Flush();
-                        packet.Unref();
-                    }
-                    TimeSpan timeSpan2 = timeSpan - (DateTime.UtcNow - utcNow);
-                    if (timeSpan2 > TimeSpan.Zero)
-                    {
-                        Thread.Sleep(timeSpan2);
+
+                        sw.Restart();
+                        frame.Pts = num4++;
+                        codecContext.SendFrame(frame);
+                        using Packet packet = new Packet();
+                        while (true)
+                        {
+                            CodecResult codecResult = codecContext.ReceivePacket(packet);
+                            if (codecResult == CodecResult.Again || codecResult == CodecResult.EOF)
+                            {
+                                break;
+                            }
+                            byte[] array2 = packet.Data.ToArray();
+                            if (!flag)
+                            {
+                                var (array3, array4) = ExtractSpsAndPps(array2);
+                                if (array3 == null || array4 == null)
+                                {
+                                    Log($"Waiting for IDR frame with SPS/PPS (pkt {num4})...");
+                                    packet.Unref();
+                                    continue;
+                                }
+
+                                // Send resolution info packet (type 3)
+                                byte[] resolutionBytes = new byte[8];
+                                resolutionBytes[0] = (byte)((num >> 24) & 0xFF);
+                                resolutionBytes[1] = (byte)((num >> 16) & 0xFF);
+                                resolutionBytes[2] = (byte)((num >> 8) & 0xFF);
+                                resolutionBytes[3] = (byte)(num & 0xFF);
+                                resolutionBytes[4] = (byte)((num2 >> 24) & 0xFF);
+                                resolutionBytes[5] = (byte)((num2 >> 16) & 0xFF);
+                                resolutionBytes[6] = (byte)((num2 >> 8) & 0xFF);
+                                resolutionBytes[7] = (byte)(num2 & 0xFF);
+
+                                SendTypedPacket(stream, 3, resolutionBytes);
+                                SendTypedPacket(stream, 1, array3);
+                                SendTypedPacket(stream, 2, array4);
+                                stream.Flush();
+                                flag = true;
+                                Log($"Config sent - Res={num}x{num2} SPS={array3.Length}B  PPS={array4.Length}B");
+                                array2 = StripConfigNals(array2);
+                            }
+                            SendTypedPacket(stream, 0, array2);
+                            stream.Flush();
+                            packet.Unref();
+                        }
+                        long msEncode = sw.ElapsedMilliseconds;
+                        if (num4 <= 5 || num4 % 60 == 0)
+                        {
+                            Log($"[Profile] Frame {num4}: Capture={msCapture}ms, Convert={msConvert}ms, Encode={msEncode}ms, Size={frame.Width}x{frame.Height}");
+                        }
+                        TimeSpan timeSpan2 = timeSpan - (DateTime.UtcNow - utcNow);
+                        if (timeSpan2 > TimeSpan.Zero)
+                        {
+                            Thread.Sleep(timeSpan2);
+                        }
                     }
                 }
+                catch (IOException)
+                {
+                    Log("Client disconnected.");
+                }
+                catch (Exception ex2) when (!(ex2 is OperationCanceledException))
+                {
+                    Log($"CRASH: {ex2.GetType().Name}: {ex2.Message}\n{ex2.StackTrace}");
+                }
             }
-            catch (IOException)
+            finally
             {
-                Log("Client disconnected.");
-            }
-            catch (Exception ex2) when (!(ex2 is OperationCanceledException))
-            {
-                Log($"CRASH: {ex2.GetType().Name}: {ex2.Message}\n{ex2.StackTrace}");
+                // Free Parallel PixelConverters
+                foreach (var conv in converters)
+                {
+                    conv?.Dispose();
+                }
+                // Free CPU buffer
+                System.Runtime.InteropServices.Marshal.FreeHGlobal(cpuBuffer);
+                lock (_clientLock)
+                {
+                    if (_activeClient == client)
+                    {
+                        _activeClient = null;
+                    }
+                }
             }
         }
     }

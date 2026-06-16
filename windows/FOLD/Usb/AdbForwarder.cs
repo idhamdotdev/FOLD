@@ -141,13 +141,23 @@ public sealed class AdbForwarder : IDisposable
         try
         {
             var asm = Assembly.GetExecutingAssembly();
-            using var stream = asm.GetManifestResourceStream("FOLD.Resources.adb.exe");
-            if (stream == null) return null;
+            
+            // Extract adb.exe
+            using (var stream = asm.GetManifestResourceStream("FOLD.Resources.adb.exe"))
+            {
+                if (stream == null) return null;
+                Directory.CreateDirectory(ExtractedAdbDir);
+                using (var fs = new FileStream(ExtractedAdbPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    stream.CopyTo(fs);
+                }
+            }
 
-            Directory.CreateDirectory(ExtractedAdbDir);
+            // Extract AdbWinApi.dll
+            ExtractResource(asm, "FOLD.Resources.AdbWinApi.dll", Path.Combine(ExtractedAdbDir, "AdbWinApi.dll"));
 
-            using var fs = new FileStream(ExtractedAdbPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            stream.CopyTo(fs);
+            // Extract AdbWinUsbApi.dll
+            ExtractResource(asm, "FOLD.Resources.AdbWinUsbApi.dll", Path.Combine(ExtractedAdbDir, "AdbWinUsbApi.dll"));
 
             return ExtractedAdbPath;
         }
@@ -155,6 +165,18 @@ public sealed class AdbForwarder : IDisposable
         {
             return null;
         }
+    }
+
+    private static void ExtractResource(Assembly asm, string resourceName, string destPath)
+    {
+        try
+        {
+            using var stream = asm.GetManifestResourceStream(resourceName);
+            if (stream == null) return;
+            using var fs = new FileStream(destPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            stream.CopyTo(fs);
+        }
+        catch {}
     }
 
     private static string? FindInPath(string exe)

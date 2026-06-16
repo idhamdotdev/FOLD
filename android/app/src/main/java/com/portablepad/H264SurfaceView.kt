@@ -21,6 +21,7 @@ private const val PORT = 8765
 private const val TYPE_SPS   : Byte = 0x01
 private const val TYPE_PPS   : Byte = 0x02
 private const val TYPE_FRAME : Byte = 0x00
+private const val TYPE_RESOLUTION : Byte = 0x03
 
 /**
  * H.264 decoder that bypasses all Surface-mode issues.
@@ -42,6 +43,7 @@ class H264SurfaceView @JvmOverloads constructor(
 
     /** Wired by the Activity to show status without touching the video canvas. */
     var statusListener: ((String) -> Unit)? = null
+    var statsListener: ((String) -> Unit)? = null
 
     private val mainScope   = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var streamJob   : Job?            = null
@@ -75,12 +77,16 @@ class H264SurfaceView @JvmOverloads constructor(
     // ── Stream loop ───────────────────────────────────────────────────────────
 
     private fun launchStream(host: String) {
-        if (streamJob?.isActive == true) {
-            Log.d(TAG, "Stream already active, ignoring launch request")
-            return
-        }
         frameCount = 0
+        val oldJob = streamJob
         streamJob = mainScope.launch {
+            if (oldJob != null) {
+                try {
+                    oldJob.cancelAndJoin()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to cancel old job: ${e.message}")
+                }
+            }
             withContext(Dispatchers.IO) {
                 while (isActive) {
                     try   { streamSession(host) }
@@ -100,17 +106,23 @@ class H264SurfaceView @JvmOverloads constructor(
     private suspend fun streamSession(host: String) {
         postStatus("Connecting to $host:$PORT …")
 
-        val socket = Socket(host, PORT)
+        val socket = Socket()
         coroutineContext[Job]?.invokeOnCompletion {
             runCatching { socket.close() }
         }
+        socket.connect(java.net.InetSocketAddress(host, PORT), 3000)
 
         socket.use {
             socket.tcpNoDelay        = true
             socket.receiveBufferSize = 4 * 1024 * 1024
             val stream = socket.getInputStream()
 
-            postStatus("Connected — waiting for SPS/PPS…")
+            val resData = readTypedPacket(stream, TYPE_RESOLUTION) ?: error("No Resolution Info")
+            val w = readInt(resData.sliceArray(0..3))
+            val h = readInt(resData.sliceArray(4..7))
+            streamWidth = w
+            streamHeight = h
+            Log.d(TAG, "Resolution updated from server: ${w}x${h}")
 
             val sps = readTypedPacket(stream, TYPE_SPS) ?: error("No SPS")
             val pps = readTypedPacket(stream, TYPE_PPS) ?: error("No PPS")
@@ -137,37 +149,42 @@ class H264SurfaceView @JvmOverloads constructor(
             val decoder = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
             Log.d(TAG, "Decoder: ${decoder.name}")
 
-            // ── Surface mode (zero-copy GPU rendering) ────────────────────────
-            // c2.* (Codec 2.0) decoders support Surface mode reliably.
-            // OMX decoders on some MIUI devices throw IllegalArgumentException;
-            // we catch that and fall back to ByteBuffer automatically.
-            val liveSurface = holder.surface?.takeIf { it.isValid }
-            val usingSurface: Boolean = if (liveSurface != null) {
-                try {
-                    decoder.configure(format, liveSurface, null, 0)
-                    Log.d(TAG, "Configured in Surface mode (zero-copy)")
-                    true
-                } catch (e: Exception) {
-                    Log.w(TAG, "Surface mode failed (${e.message}) — falling back to ByteBuffer")
-                    decoder.reset()
+            try {
+                // ── Surface mode (zero-copy GPU rendering) ────────────────────────
+                // c2.* (Codec 2.0) decoders support Surface mode reliably.
+                // OMX decoders on some MIUI devices throw IllegalArgumentException;
+                // we catch that and fall back to ByteBuffer automatically.
+                val liveSurface = holder.surface?.takeIf { it.isValid }
+                val usingSurface: Boolean = if (liveSurface != null) {
+                    try {
+                        decoder.configure(format, liveSurface, null, 0)
+                        Log.d(TAG, "Configured in Surface mode (zero-copy)")
+                        true
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Surface mode failed (${e.message}) — falling back to ByteBuffer")
+                        decoder.reset()
+                        decoder.configure(format, null, null, 0)
+                        false
+                    }
+                } else {
+                    Log.w(TAG, "Surface not ready — using ByteBuffer mode")
                     decoder.configure(format, null, null, 0)
                     false
                 }
-            } else {
-                Log.w(TAG, "Surface not ready — using ByteBuffer mode")
-                decoder.configure(format, null, null, 0)
-                false
-            }
 
-            decoder.start()
-            Log.d(TAG, "Decoder started in ${if (usingSurface) "Surface" else "ByteBuffer"} mode")
+                decoder.start()
+                Log.d(TAG, "Decoder started in ${if (usingSurface) "Surface" else "ByteBuffer"} mode")
 
-            try {
                 val info = MediaCodec.BufferInfo()
                 val lenBuf = ByteArray(4)
                 frameCount = 0
                 var outputFormatWidth = alignedW
                 var outputFormatHeight = alignedH
+
+                // Stats trackers
+                var bytesThisSecond = 0L
+                var framesThisSecond = 0
+                var lastStatsTime = System.currentTimeMillis()
 
                 while (coroutineContext[Job]?.isActive == true) {
                     val typeByte = stream.read()
@@ -179,6 +196,9 @@ class H264SurfaceView @JvmOverloads constructor(
 
                     val data = ByteArray(len)
                     readFully(stream, data)
+
+                    // Track received bytes (len + 1 type byte + 4 length bytes)
+                    bytesThisSecond += len + 5
 
                     if (typeByte.toByte() != TYPE_FRAME) {
                         Log.w(TAG, "Skipping non-frame packet 0x${typeByte.toString(16)}")
@@ -232,6 +252,7 @@ class H264SurfaceView @JvmOverloads constructor(
                                     }
                                 }
                                 frameCount++
+                                framesThisSecond++
                                 if (frameCount == 1) postStatus(null)
                                 if (frameCount <= 5 || frameCount % 60 == 0) {
                                     Log.d(TAG, "Frame $frameCount rendered (${if (usingSurface) "Surface" else "ByteBuffer"})")
@@ -240,13 +261,45 @@ class H264SurfaceView @JvmOverloads constructor(
                         }
                         outIdx = decoder.dequeueOutputBuffer(info, 0)
                     }
+
+                    // Calculate and publish stats every second
+                    val now = System.currentTimeMillis()
+                    val elapsed = now - lastStatsTime
+                    if (elapsed >= 1000) {
+                        val mbps = (bytesThisSecond * 8.0) / (elapsed / 1000.0) / 1_000_000.0
+                        val fps = (framesThisSecond * 1000.0) / elapsed
+                        val statsStr = String.format(
+                            java.util.Locale.US,
+                            "%dx%d @ %.0f FPS | %.1f Mbps",
+                            outputFormatWidth,
+                            outputFormatHeight,
+                            fps,
+                            mbps
+                        )
+                        withContext(Dispatchers.Main) {
+                            statsListener?.invoke(statsStr)
+                        }
+                        bytesThisSecond = 0
+                        framesThisSecond = 0
+                        lastStatsTime = now
+                    }
                 }
             } finally {
-                // Cleanup
+                withContext(Dispatchers.Main) {
+                    statsListener?.invoke("")
+                }
+                try {
+                    decoder.stop()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Decoder stop failed: ${e.message}")
+                }
+                try {
+                    decoder.release()
+                    Log.d(TAG, "Decoder released after $frameCount frames")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Decoder release failed: ${e.message}")
+                }
             }
-            decoder.stop()
-            decoder.release()
-            Log.d(TAG, "Decoder released after $frameCount frames")
         }
     }
 

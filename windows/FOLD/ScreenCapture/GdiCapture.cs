@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
@@ -73,6 +73,26 @@ public sealed class GdiCapture : IScreenCapture
         var scaled = new Bitmap(bmp, dstW, dstH);
         bmp.Dispose();
         return scaled;
+    }
+
+    public bool CaptureToBuffer(IntPtr dstBuffer, out int rowPitch, int timeoutMs)
+    {
+        rowPitch = _width * 4;
+        using var bmp = CaptureFrame();
+        var bmpData = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            unsafe
+            {
+                int bytesToCopy = bmp.Width * bmp.Height * 4;
+                Buffer.MemoryCopy((void*)bmpData.Scan0, (void*)dstBuffer, bytesToCopy, bytesToCopy);
+            }
+            return true;
+        }
+        finally
+        {
+            bmp.UnlockBits(bmpData);
+        }
     }
 
     private static void DrawCursor(Graphics g, int originX, int originY)

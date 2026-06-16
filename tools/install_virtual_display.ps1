@@ -87,6 +87,110 @@ $config = @"
 "@
 Set-Content -Path (Join-Path $optDir "option.txt") -Value $config -Encoding UTF8
 
+# Also write C:\VirtualDisplayDriver\vdd_settings.xml for Mike's VDD variant
+$vddDir = "C:\VirtualDisplayDriver"
+New-Item -Path $vddDir -ItemType Directory -Force | Out-Null
+$xmlConfig = @"
+<?xml version='1.0' encoding='utf-8'?>
+<vdd_settings>
+    <monitors>
+        <count>1</count>
+    </monitors>
+    <gpu>
+        <friendlyname>Best GPU (Auto)</friendlyname>
+    </gpu>
+    <global>
+        <!--These are global refreshrates, any you add in here, will be replicated to all resolutions-->
+        <g_refresh_rate>60</g_refresh_rate>
+        <g_refresh_rate>90</g_refresh_rate>
+        <g_refresh_rate>120</g_refresh_rate>
+        <g_refresh_rate>144</g_refresh_rate>
+        <g_refresh_rate>165</g_refresh_rate>
+        <g_refresh_rate>244</g_refresh_rate>
+    </global>
+    <resolutions>
+        <resolution>
+            <width>800</width>
+            <height>600</height>
+            <refresh_rate>30</refresh_rate>
+        </resolution>
+        <resolution>
+            <width>1280</width>
+            <height>720</height>
+            <refresh_rate>30</refresh_rate>
+        </resolution>
+        <resolution>
+            <width>1366</width>
+            <height>768</height>
+            <refresh_rate>30</refresh_rate>
+        </resolution>
+        <resolution>
+            <width>1920</width>
+            <height>1080</height>
+            <refresh_rate>30</refresh_rate>
+        </resolution>
+        <resolution>
+            <width>1920</width>
+            <height>1200</height>
+            <refresh_rate>30</refresh_rate>
+        </resolution>
+        <resolution>
+            <width>2000</width>
+            <height>1200</height>
+            <refresh_rate>30</refresh_rate>
+        </resolution>
+        <resolution>
+            <width>2560</width>
+            <height>1440</height>
+            <refresh_rate>30</refresh_rate>
+        </resolution>
+        <resolution>
+            <width>2560</width>
+            <height>1600</height>
+            <refresh_rate>30</refresh_rate>
+        </resolution>
+        <resolution>
+            <width>2800</width>
+            <height>1752</height>
+            <refresh_rate>30</refresh_rate>
+        </resolution>
+        <resolution>
+            <width>3840</width>
+            <height>2160</height>
+            <refresh_rate>30</refresh_rate>
+        </resolution>
+    </resolutions>
+    <options>
+        <CustomEdid>false</CustomEdid>
+        <PreventSpoof>false</PreventSpoof>
+        <EdidCeaOverride>false</EdidCeaOverride>
+        <HardwareCursor>true</HardwareCursor>
+        <SDR10bit>false</SDR10bit>
+        <HDRPlus>false</HDRPlus>
+        <logging>false</logging>
+        <debuglogging>false</debuglogging>
+    </options>
+</vdd_settings>
+"@
+Set-Content -Path (Join-Path $vddDir "vdd_settings.xml") -Value $xmlConfig -Encoding UTF8
+
+# Restart virtual display device to load the new resolutions
+Write-Host "      Restarting virtual display device..." -ForegroundColor Yellow
+$deviceId = (Get-PnpDevice | Where-Object { $_.FriendlyName -match "Virtual Display" -or $_.InstanceId -match "MttVDD" -or $_.FriendlyName -match "LuminonCore" -or $_.InstanceId -match "LCI\\IDDCX" }).InstanceId
+if ($deviceId) {
+    Write-Host "      Found virtual display device: $deviceId" -ForegroundColor Green
+    Start-Process -FilePath "pnputil.exe" -ArgumentList "/restart-device ""$deviceId""" -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
+    Start-Process -FilePath "pnputil.exe" -ArgumentList "/disable-device ""$deviceId""" -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+    Start-Process -FilePath "pnputil.exe" -ArgumentList "/enable-device ""$deviceId""" -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
+} else {
+    Write-Host "      Could not find virtual display device instance ID. Trying fallback..." -ForegroundColor Yellow
+    Start-Process -FilePath "pnputil.exe" -ArgumentList "/restart-device ""ROOT\DISPLAY\0000""" -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
+    Start-Process -FilePath "pnputil.exe" -ArgumentList "/disable-device ""ROOT\DISPLAY\0000""" -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+    Start-Process -FilePath "pnputil.exe" -ArgumentList "/enable-device ""ROOT\DISPLAY\0000""" -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
+}
+
 # Auto-extend the display
 Write-Host "      Extending display..." -ForegroundColor Yellow
 Start-Process -FilePath "DisplaySwitch.exe" -ArgumentList "/extend" -Wait -ErrorAction SilentlyContinue

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 
 namespace FOLD.ScreenCapture;
@@ -11,4 +11,7 @@ public interface IScreenCapture : IDisposable
 
     int ScreenWidth  { get; }
     int ScreenHeight { get; }
+
+    /// <summary>Capture primary screen and copy the raw BGRA pixels directly to the CPU buffer. Thread-safe.</summary>
+    bool CaptureToBuffer(IntPtr dstBuffer, out int rowPitch, int timeoutMs);
 }

@@ -37,6 +37,22 @@
             android:text="Initializing…"/>
     </LinearLayout>
 
+    <!-- Stats Overlay: Resolution, FPS and Bitrate -->
+    <TextView
+        android:id="@+id/tvStats"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#CCFFFFFF"
+        android:textSize="11sp"
+        android:fontFamily="monospace"
+        android:background="#88000000"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="5dp"
+        android:layout_gravity="top|start"
+        android:layout_margin="16dp"
+        android:visibility="gone"
+        android:text=""/>
+
     <!-- Translucent disconnect button (tap to go back) -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnDisconnect"
