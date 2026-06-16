@@ -1,5 +1,9 @@
 # F.O.L.D. — Fast Operational Link Display
 
+[![GitHub stars](https://img.shields.io/github/stars/idhamdotdev/FOLD?style=flat-square)](https://github.com/idhamdotdev/FOLD/stargazers)
+[![GitHub license](https://img.shields.io/github/license/idhamdotdev/FOLD?style=flat-square)](https://github.com/idhamdotdev/FOLD/blob/main/LICENSE.md)
+[![GitHub followers](https://img.shields.io/github/followers/idhamdotdev?label=followers&style=flat-square)](https://github.com/idhamdotdev)
+
 > **Expand your workspace anywhere, instantly.** F.O.L.D. is a high-performance, lightweight utility designed to seamlessly transform any Android tablet (such as the Redmi Pad Pro) into a fully functional, ultra-portable second screen for your Windows PC with touch control.
 
 ---
