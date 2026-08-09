@@ -1,0 +1,78 @@
+name: Bug report
+description: Report a reproducible problem with an official FOLD build.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve FOLD. Do not include signing keys, ADB keys, passwords, public IP addresses, private logs, or sensitive screen content.
+  - type: input
+    id: fold-version
+    attributes:
+      label: FOLD version
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: windows-version
+    attributes:
+      label: Windows version
+      options:
+        - Windows 11 x64
+        - Windows 10 22H2 x64 (experimental)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: android-version
+    attributes:
+      label: Android device and version
+      placeholder: "Device model, Android version"
+    validations:
+      required: true
+  - type: dropdown
+    id: connection-mode
+    attributes:
+      label: Connection mode
+      options:
+        - USB (ADB)
+        - Wi-Fi
+        - Both
+        - Not connection-related
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the observed result and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Open FOLD...
+        2. Select...
+        3. Press...
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Redacted diagnostics
+      description: Add relevant error text or logs only after removing sensitive data.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I obtained FOLD from an official distribution channel.
+          required: true
+        - label: I checked the troubleshooting guide and searched existing issues.
+          required: true
+        - label: I removed secrets, private IP details, and sensitive screen content.
+          required: true
+
