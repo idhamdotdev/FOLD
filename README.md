@@ -100,7 +100,8 @@ For installation, connection, or compatibility problems, use the
 FOLD version, Windows and Android versions, and connection mode. Do not post
 screen content, ADB keys, passwords, private IP addresses, or other sensitive
 data in a public issue. Security reports belong in the private channel
-described in [SECURITY.md](SECURITY.md).
+described in [SECURITY.md](SECURITY.md). For direct product support, contact
+[hello@idham.dev](mailto:hello@idham.dev).
 
 ## Security and privacy
 
@@ -129,11 +130,13 @@ Android touch
 
 ## License
 
-FOLD is proprietary freeware: personal and internal business use are permitted
-under the [EULA](EULA.md), but the source code is private and is not
-distributed. The software may not be republished, modified, sold, or publicly
-redistributed except as the EULA or applicable law permits. See the concise
-[licensing notice](LICENSE.md).
+FOLD is proprietary freeware. Personal, educational, employment, business,
+and commercial use of official builds is permitted free of charge under the
+[EULA](EULA.md), including use in paid work and monetized content. The EULA
+does not provide or transfer source code or intellectual-property rights. The
+software may not be republished, modified, sold, offered as a managed or
+white-label service, or publicly redistributed except as the EULA or
+applicable law permits. See the concise [licensing notice](LICENSE.md).
 
 Third-party components retain their own terms. See
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

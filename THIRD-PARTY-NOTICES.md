@@ -14,6 +14,10 @@ copyrights and license terms. License texts distributed with FOLD are in the
 - Use: creates the virtual extended monitor; its installer is embedded in the
   Windows host and copied into the Windows installer.
 
+FOLD applies a FOLD-owned custom EDID through the driver's supported settings
+to show the monitor name `FOLD Display`. The upstream driver binary remains
+unmodified and remains attributed to its authors under the MIT License.
+
 ## Android Debug Bridge (ADB)
 
 - Upstream: https://android.googlesource.com/platform/packages/modules/adb/
@@ -22,6 +26,9 @@ copyrights and license terms. License texts distributed with FOLD are in the
 - License: Apache License 2.0
 - Use: `adb.exe`, `AdbWinApi.dll`, and `AdbWinUsbApi.dll` provide USB device
   discovery, app launch, and port forwarding.
+
+The exact notice bundle shipped with Android SDK Platform-Tools `36.0.0` is
+preserved at `LICENSES/Android-Platform-Tools-36.0.0-NOTICE.txt`.
 
 ## SharpDX
 
@@ -35,11 +42,26 @@ copyrights and license terms. License texts distributed with FOLD are in the
 
 - Upstream: https://github.com/dotnet/runtime
 - Copyright: .NET Foundation and contributors
-- License: MIT
 - Use: FOLD's self-contained Windows artifacts include the .NET 8 runtime,
   Windows Forms, and framework libraries. FOLD also references the Microsoft
   `System.Net.Http` `4.3.4` and `System.Text.RegularExpressions` `4.3.1`
-  packages, both under the MIT license.
+  packages.
+
+The exact Windows runtime packs used by FOLD are version `8.0.27`. Microsoft
+documents mixed licensing for a .NET Windows distribution:
+
+- most .NET runtime and library files, including the referenced `System.*`
+  packages, are provided under the MIT License;
+- `coreclr.dll`, `Microsoft.DiaSymReader.Native.amd64.dll`,
+  `PresentationNative_cor3.dll`, `vcruntime140_cor3.dll`, and
+  `wpfgfx_cor3.dll` are governed by the Microsoft .NET Library License; and
+- `D3DCompiler_47_cor3.dll` is governed by the Microsoft Windows SDK License.
+
+See `LICENSES/Microsoft-.NET-Windows-License-Information.md` and the exact
+runtime notice file
+`LICENSES/Microsoft-.NET-8.0.27-THIRD-PARTY-NOTICES.txt`. The official .NET
+Windows classification is maintained at
+https://github.com/dotnet/core/blob/main/license-information-windows.md.
 
 The Microsoft Media Foundation H.264 encoder is a Windows system component.
 FOLD calls it through Windows APIs and does not redistribute it as a separate

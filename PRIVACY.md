@@ -27,21 +27,22 @@ interfere with unencrypted Wi-Fi traffic. See [SECURITY.md](SECURITY.md).
 
 The Windows host stores the last selected ADB device serial in
 `%APPDATA%\FOLD\settings.json`. It also writes operational encoder and
-connection messages to `h264_server.log` beside the running host files. These
-logs can include timestamps, resolution, encoder errors, and connection
-events, but are not transmitted by FOLD.
+connection messages to `%LOCALAPPDATA%\FOLD\logs\h264_server.log`. These logs
+can include timestamps, resolution, encoder errors, and connection events,
+but are not transmitted by FOLD. The active log is rotated at approximately
+1 MiB and FOLD retains up to two older log files (approximately 3 MiB total).
 
 The Android client stores the last entered PC IP address and selected
-connection mode in the app's private preferences. Android system backup may
-handle app preferences according to the device's backup settings. FOLD does
-not store screen recordings or touch history as a product feature.
+connection mode in the app's private preferences. Android cloud backup and
+device-to-device transfer are disabled for FOLD data. FOLD does not store
+screen recordings or touch history as a product feature.
 
 ## Retention and deletion
 
-Local preferences and logs remain until the user, operating system, app
-update, or uninstaller removes them. You can delete the Windows settings and
-log files while FOLD is closed. Clearing the Android app's storage removes its
-saved IP and mode.
+Local preferences remain until the user, operating system, app update, or
+uninstaller removes them. Windows logs are automatically rotated as described
+above and can be deleted while FOLD is closed. Clearing the Android app's
+storage removes its saved IP and mode.
 
 ## Third-party platform services
 
@@ -54,3 +55,8 @@ FOLD's control.
 Material changes to this notice will be published with an updated effective
 date. Release-specific documentation controls when behavior differs between
 versions.
+
+## Contact
+
+For privacy questions about FOLD, contact
+[hello@idham.dev](mailto:hello@idham.dev).

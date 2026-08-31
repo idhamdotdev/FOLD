@@ -28,10 +28,12 @@ only.
 ## Local files
 
 Windows stores the selected ADB serial in `%APPDATA%\FOLD\settings.json` and
-writes `h264_server.log` beside the host files. Android stores the last PC IP
-and connection mode in private app preferences. FOLD does not upload these
-files, but users should remove sensitive troubleshooting logs before sharing
-them.
+writes bounded operational logs to `%LOCALAPPDATA%\FOLD\logs\h264_server.log`.
+The active log rotates at approximately 1 MiB and retains up to two backups.
+Android stores the last PC IP and connection mode in private app preferences.
+FOLD does not upload these files, and Android cloud backup/device transfer is
+disabled for FOLD data. Users should remove sensitive troubleshooting logs
+before sharing them.
 
 Never share signing keys, `.jks`, `.pfx`, ADB private keys, passwords, private
 screen content, or a public IP address in an issue.

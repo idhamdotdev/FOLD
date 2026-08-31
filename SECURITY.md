@@ -29,6 +29,8 @@ Do not include exploits, ADB keys, signing keys, passwords, private IP
 details, or sensitive screen content in a public issue. Use GitHub's private
 **Report a vulnerability** channel on the official FOLD repository. Public
 release is blocked until that private reporting channel is enabled and tested.
+For other security contact, email [hello@idham.dev](mailto:hello@idham.dev)
+without attaching secrets or private keys.
 
 Include the FOLD version, Windows and Android versions, connection mode,
 reproduction steps, and impact. Receipt and resolution times are not promised.
