@@ -9,10 +9,26 @@ values for direct downloads. The Play Console AAB is not a public download.
 
 ## Platform policy
 
-- Windows 11 x64 is officially supported and tested.
-- Windows 10 22H2 x64 is experimental/best-effort and has no compatibility
-  guarantee.
+- Windows 11 x64 is the only supported Windows platform.
+- Windows 10 is not supported; compatibility testing and troubleshooting are
+  outside the support scope.
+- Linux, macOS, and iPadOS are not supported.
 - Android 8.0 or newer is required.
+
+## Maintenance update — 24 October 2026
+
+The Windows maintenance update fixes an Intel Quick Sync startup/output issue
+reported on a ProBook, while preserving hardware preference and automatic
+Microsoft inbox software recovery. The Android APK remains version `1.0.0`,
+version code `4`, with no binary change in this update. Download hashes are
+published in the official GitHub release notes.
+
+## Planned next update
+
+Windows-to-Windows second-screen support is planned: use a Windows PC or laptop
+as a display for another Windows PC, with the source/display roles selected per
+session. This feature is not available in the current release. There is no
+announced release date, performance guarantee, or additional platform support.
 
 ## Release gate
 
@@ -28,8 +44,9 @@ A public release is ready only after all of the following are true:
 - the public showroom contains no private source, secrets, build tools, or
   internal Git history.
 
-This status is not a promise of a release date, feature roadmap, or Windows 10
-compatibility.
+This status is not a promise of a release date, feature roadmap, or universal
+hardware compatibility. A successful launch on an unsupported OS does not
+change the platform policy.
 
 ## User documentation
 

@@ -2,9 +2,9 @@
 
 ## Supported platforms
 
-Security fixes target publicly released FOLD builds. Windows 11 is the
-supported Windows platform; Windows 10 22H2 use is experimental and has no
-compatibility guarantee.
+Security fixes target publicly released FOLD builds on supported platforms:
+Windows 11 x64 and the Android client on Android 8.0 or newer. Windows 10 is
+not supported. Linux, macOS, and iPadOS are not supported.
 
 ## Important network limitations
 

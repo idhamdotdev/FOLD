@@ -5,12 +5,14 @@ distribution channel.
 
 ## Before you start
 
-- Windows 11 x64 PC for official support. Windows 10 22H2 x64 can try the same
-  build as experimental/best-effort only.
+- Windows 11 x64 PC.
 - Android tablet running Android 8.0 or newer.
 - A data-capable USB cable, or a trusted private local Wi-Fi network.
 - Administrator approval when the installer configures the Virtual Display
   Driver and input helper.
+
+Windows 10 is not supported. These installation and connection steps target
+Windows 11 only.
 
 FOLD creates an **extended virtual monitor**. It is not a screen mirror. Move
 an app window onto that monitor to show it on the tablet.

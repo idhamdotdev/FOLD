@@ -6,7 +6,7 @@
 
 **Fast Operational Link Display**
 
-**Turn an Android tablet into an extended display for a Windows PC.**
+**Turn an Android phone or tablet into an extended display for a Windows 11 PC.**
 
 Free to use, works offline, and no account is required.
 
@@ -24,10 +24,27 @@ cloud relay or root access is required.
 
 ## Platform support
 
-- **Windows 11 x64:** officially supported target.
-- **Windows 10 22H2 x64:** experimental/best-effort. The same build may work,
-  but compatibility, fixes, and performance are not guaranteed.
+- **Windows 11 x64:** the only supported Windows platform.
 - **Android 8.0 or newer:** Android client target, no root required.
+
+Phones and tablets use the same Android client. Connection and portrait/landscape
+streaming have been tested on a TECNO CM5 phone and selected tablets; this is not
+a compatibility guarantee for every Android model. Tablets offer more usable
+desktop space. On phones, control sizing and the on-screen keyboard can vary;
+if the Wi-Fi IP field is obscured in landscape, enter the address in portrait.
+
+Windows 10 is not supported. Linux, macOS, and iPadOS are not supported.
+
+## Maintenance update — 24 October 2026
+
+The Windows installer includes a fix for Intel Quick Sync encoder startup that
+could leave the Android client at **Connecting** on affected PCs. Hardware
+encoding was verified on the reported ProBook. Automatic software recovery and
+virtual-display safety checks remain enabled. The Android APK is unchanged.
+
+**Planned next:** Windows-to-Windows second-screen support, so a PC or laptop
+can act as the display for another Windows PC. PC-to-PC is not available in
+this build; availability depends on implementation and validation.
 
 ## Features
 
@@ -83,18 +100,18 @@ cloud relay or root access is required.
    listing when available.
 2. Install the Windows host and approve driver installation.
 3. Install and open the Android APK.
-4. For USB, enable USB debugging, accept the PC fingerprint, choose the tablet
+4. For USB, enable USB debugging, accept the PC fingerprint, choose the intended device
    in FOLD's ADB selector, then press **START** on Windows and **CONNECT** on
    Android.
 5. For Wi-Fi, place both devices on one trusted private network, select
    **Wi-Fi**, copy the PC IP into Android, press **START**, then **CONNECT**.
 
 FOLD creates an extended monitor, not a mirror. Move a Windows app onto the
-virtual display to show it on the tablet.
+virtual display to show it on the Android device.
 
 ## Support
 
-For installation, connection, or compatibility problems, use the
+For installation, connection, or compatibility problems on Windows 11, use the
 [troubleshooting guide](docs/TROUBLESHOOTING.md) first, then open a
 [GitHub issue](https://github.com/idhamdotdev/FOLD/issues/new/choose) with the
 FOLD version, Windows and Android versions, and connection mode. Do not post
@@ -102,6 +119,10 @@ screen content, ADB keys, passwords, private IP addresses, or other sensitive
 data in a public issue. Security reports belong in the private channel
 described in [SECURITY.md](SECURITY.md). For direct product support, contact
 [hello@idham.dev](mailto:hello@idham.dev).
+
+Windows 10 compatibility testing and troubleshooting are outside the support
+scope. Being able to launch FOLD on an unsupported system does not mean it is
+supported.
 
 ## Security and privacy
 

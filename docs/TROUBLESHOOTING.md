@@ -1,7 +1,8 @@
 # Troubleshooting
 
-These steps target FOLD 1.0. The Windows host must show an active session
-before the Android client presses **CONNECT**.
+These steps target FOLD 1.0 on Windows 11 x64. Windows 10 is not supported;
+there is no Windows 10 compatibility troubleshooting path. The Windows host
+must show an active session before the Android client presses **CONNECT**.
 
 | Problem | What to check |
 | --- | --- |
@@ -13,7 +14,6 @@ before the Android client presses **CONNECT**.
 | Touch does not work | Enable **Touch Screen Injection**, reconnect, and confirm the input helper is registered. Disable touch if the network is not trusted. |
 | No virtual display | Restart Windows once after installation, check **Settings > System > Display**, select **Extend**, then reinstall the driver only if the display is still absent. |
 | High CPU/GPU or stutter | Enable 30 FPS, use 1080p before testing higher resolutions, close competing capture/encode workloads, and prefer USB. Hardware H.264 is used only when a viable hardware Media Foundation encoder is available; otherwise Windows' inbox software encoder is expected to use more CPU. |
-| Windows 10 problem | Confirm Windows 10 22H2 x64. It is experimental/best-effort and is not a supported compatibility promise. Include preflight results in any report. |
 | SmartScreen or signature warning | Download only from the official release, verify its SHA-256, and read the release note's signing status. Do not assume a self-signed build proves publisher identity. |
 
 ## Before reporting
