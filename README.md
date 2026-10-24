@@ -42,10 +42,6 @@ could leave the Android client at **Connecting** on affected PCs. Hardware
 encoding was verified on the reported ProBook. Automatic software recovery and
 virtual-display safety checks remain enabled. The Android APK is unchanged.
 
-**Planned next:** Windows-to-Windows second-screen support, so a PC or laptop
-can act as the display for another Windows PC. PC-to-PC is not available in
-this build; availability depends on implementation and validation.
-
 ## Features
 
 | | |

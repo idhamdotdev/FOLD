@@ -23,13 +23,6 @@ Microsoft inbox software recovery. The Android APK remains version `1.0.0`,
 version code `4`, with no binary change in this update. Download hashes are
 published in the official GitHub release notes.
 
-## Planned next update
-
-Windows-to-Windows second-screen support is planned: use a Windows PC or laptop
-as a display for another Windows PC, with the source/display roles selected per
-session. This feature is not available in the current release. There is no
-announced release date, performance guarantee, or additional platform support.
-
 ## Release gate
 
 A public release is ready only after all of the following are true:
